@@ -8,6 +8,10 @@ Convert lists to xml lists (unlike networkx which crashes for this step)
 TODO
 Need to check if large files can be loaded into a string as to not take a lot of memory, otherwise use a bufreader
 
+Nice to have:
+Btreemap for keys so that they are displayed in order
+Keys at the top of the file
+
 Nom: this is very interesting:
 https://github.com/Geal/nom/blob/master/doc/choosing_a_combinator.md
 
@@ -19,24 +23,14 @@ https://depth-first.com/articles/2020/07/20/reading-sd-files-in-rust/
 use itertools::Itertools;
 use std::time::Instant;
 
-use std::borrow::Cow;
-
 use quick_xml::events::{BytesDecl, BytesEnd, BytesStart, BytesText, Event};
-use quick_xml::Reader;
 use quick_xml::Writer;
-use std::io::Cursor;
 
-use graph_io_gml::parse_gml;
 use std::collections::HashMap;
 use std::ffi::OsStr;
-use std::fs;
 use std::path::Path;
-use std::path::PathBuf;
-
-use nom::AsChar;
-use std::borrow::Borrow;
 use std::fs::File;
-use std::io::{BufRead, BufReader, BufWriter, LineWriter, Write};
+use std::io::{BufRead, BufReader, BufWriter};
 
 #[derive(Debug, Clone)]
 struct Node<'a> {
@@ -61,74 +55,49 @@ struct Graph<'a> {
     edges: Vec<u8>,
 }
 
-// struct Foo<'a> {
-//     baz: Cow<'a, str>,
-// }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 enum GraphmlElems {
-    node,
-    edge,
-    graph
+    Node,
+    Edge,
+    Graph,
 }
 impl GraphmlElems {
     fn value(&self) -> &str {
         match *self {
-            GraphmlElems::node => "node",
-            GraphmlElems::edge => "edge",
-            GraphmlElems::graph => "graph",
+            GraphmlElems::Node => "node",
+            GraphmlElems::Edge => "edge",
+            GraphmlElems::Graph => "graph",
         }
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 enum GraphmlAttributeTypes {
-    int,
-    double,
-    string
+    Int,
+    Double,
+    String,
 }
 impl GraphmlAttributeTypes {
     fn value(&self) -> &str {
         match *self {
-            GraphmlAttributeTypes::int => "int",
-            GraphmlAttributeTypes::double => "double",
-            GraphmlAttributeTypes::string => "string",
+            GraphmlAttributeTypes::Int => "int",
+            GraphmlAttributeTypes::Double => "double",
+            GraphmlAttributeTypes::String => "string",
         }
     }
 }
 
-// #[derive(Debug, Clone)]
-// struct Key<'a> {
-//     id: Cow<'a, str>,
-//     attr_name: Cow<'a, str>,
-//     for_type: Cow<'a, str>,
-//     attr_type: Cow<'a, str>,
-//     // <key id="d10" for="edge" attr.name="list" attr.type="string" />
-//     // <key id="d9" for="edge" attr.name="dictionary" attr.type="string" />
-//     // <key id="d8" for="edge" attr.name="value" attr.type="double" />
-//     // <key id="d7" for="node" attr.name="nodeitems" attr.type="string" />
-// }
-//#[derive(PartialEq, Eq, Hash)]
-
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 struct KeyAttributes {
-    // id: String,
     attr_name: String,
     for_elem: GraphmlElems,
-    // attr_type: GraphmlAttributeTypes
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 struct KeyValues {
     id: String,
-    // attr_name: String,
-    // for_elem: GraphmlElems,
-    attr_type: GraphmlAttributeTypes
+    attr_type: GraphmlAttributeTypes,
 }
-
-
-
-// possible types are "int", "string", "double", "
-
 
 
 fn add_header(writer: &mut Writer<BufWriter<&File>>, directed: bool) {
@@ -157,7 +126,7 @@ fn add_header(writer: &mut Writer<BufWriter<&File>>, directed: bool) {
     let mut elem = BytesStart::borrowed_name("graph".as_bytes());
     let directed = match directed {
         true => "directed",
-        false => "undirected"
+        false => "undirected",
     };
     elem.push_attribute(("edgedefault", directed));
 
@@ -167,88 +136,79 @@ fn add_header(writer: &mut Writer<BufWriter<&File>>, directed: bool) {
 }
 
 fn add_graph_info(writer: &mut Writer<BufWriter<&File>>, graph_name: &str, key_name: &str) {
-    // Add the graph name and key information tag
-    // ie. <data key="d0">Test gml file</data>
+    // Add the graph name: <data key="d0">Test gml file</data>
 
     let mut elem = BytesStart::borrowed_name("data".as_bytes());
     elem.push_attribute(("key", key_name));
-    let mut text = BytesText::from_plain_str(graph_name);
+    let text = BytesText::from_plain_str(graph_name);
     writer
         .write_event(Event::Start(elem))
         .expect("Unable to write data");
     writer
         .write_event(Event::Text(text))
         .expect("Unable to write data");
-    writer.write_event(Event::End(BytesEnd::borrowed(b"data")));
+    writer.write_event(Event::End(BytesEnd::borrowed(b"data"))).ok();
 }
 
 fn add_footer(writer: &mut Writer<BufWriter<&File>>) {
     // Close the graph and graphml xml nodes
-    writer.write_event(Event::End(BytesEnd::borrowed(b"graph")));
-    writer.write_event(Event::End(BytesEnd::borrowed(b"graphml")));
+    writer.write_event(Event::End(BytesEnd::borrowed(b"graph"))).ok();
+    writer.write_event(Event::End(BytesEnd::borrowed(b"graphml"))).ok();
 }
 
-fn add_node(writer: &mut Writer<BufWriter<&File>>, node_id: u32, node_data: &Vec<(String, String)>) {
-    // Add a new xml node
-    //    <node id="1">
-    //       <data key="d0">1.0</data>
-    //     </node>
-
-    let mut node = BytesStart::borrowed_name("node".as_bytes());
+fn add_node(
+    writer: &mut Writer<BufWriter<&File>>,
+    node_id: u32,
+    node_data: &Vec<(String, String)>,
+) {
+    // Add a new xml node: <node id="1"><data key="d0">1.0</data></node>
+    let name = "node".as_bytes();
+    let mut node = BytesStart::borrowed_name(name);
     node.push_attribute(("id", node_id.to_string().as_str())); // todo, double conversion ???
-    writer
-        .write_event(Event::Start(node))
-        .expect("Unable to write data");
-    for (key, value) in node_data {
-        let mut data = BytesStart::borrowed_name("data".as_bytes());
-        data.push_attribute(("key", key.as_str()));
-        writer
-            .write_event(Event::Start(data))
-            .expect("Unable to write data");
-        let mut text = BytesText::from_plain_str(value.as_str());
-        writer
-            .write_event(Event::Text(text))
-            .expect("Unable to write data");
-        writer.write_event(Event::End(BytesEnd::borrowed(b"data")));
-    }
-    writer.write_event(Event::End(BytesEnd::borrowed(b"node")));
+    add_elem_with_keys(writer, node_data, node, name);
 }
 
 fn add_edge(
     writer: &mut Writer<BufWriter<&File>>,
     source: u32,
     target: u32,
-    keys: &Vec<(String, String)>,
+    edge_data: &Vec<(String, String)>,
 ) {
-    // Add a new xml edge
-    //    <edge source="1" target="2">
-    //       <data key="d1">1.1</data>
-    //     </edge>
-
-    let mut edge = BytesStart::borrowed_name("edge".as_bytes());
+    // Add a new xml edge: <edge source="1" target="2"><data key="d1">1.1</data></edge>
+    let name = "edge".as_bytes();
+    let mut edge = BytesStart::borrowed_name(name);
     edge.push_attribute(("source", source.to_string().as_str())); // todo, double conversion ???
     edge.push_attribute(("target", target.to_string().as_str())); // todo, double conversion ???
+    add_elem_with_keys(writer, edge_data, edge, name);
+}
+
+fn add_elem_with_keys(
+    writer: &mut Writer<BufWriter<&File>>,
+    elem_data: &Vec<(String, String)>,
+    elem: BytesStart,
+    elem_name: &[u8],
+) {
+    // Add a xml element with data keys
     writer
-        .write_event(Event::Start(edge))
+        .write_event(Event::Start(elem))
         .expect("Unable to write data");
-    for (key, value) in keys {
+    for (key, value) in elem_data {
         let mut data = BytesStart::borrowed_name("data".as_bytes());
         data.push_attribute(("key", key.as_str()));
         writer
             .write_event(Event::Start(data))
             .expect("Unable to write data");
-        let mut text = BytesText::from_plain_str(value.as_str());
+        let text = BytesText::from_plain_str(value.as_str());
         writer
             .write_event(Event::Text(text))
             .expect("Unable to write data");
-        writer.write_event(Event::End(BytesEnd::borrowed(b"data")));
+        writer.write_event(Event::End(BytesEnd::borrowed(b"data"))).ok();
     }
-    writer.write_event(Event::End(BytesEnd::borrowed(b"edge")));
+    writer.write_event(Event::End(BytesEnd::borrowed(elem_name))).ok();
 }
 
-
 fn add_keys(writer: &mut Writer<BufWriter<&File>>, keys: &HashMap<KeyAttributes, KeyValues>) {
-    // Add the list of xml keys
+    // Write the list of xml keys
     // <key id="d10" for="edge" attr.name="list" attr.type="string" />
     for (key, value) in keys.iter() {
         let mut elem = BytesStart::borrowed_name("key".as_bytes());
@@ -266,7 +226,7 @@ fn export_to_graphml(input_gml: &File, output_path: &File) {
     // export the graph to graphml at the output path destination
     // Todo: check if instantiating a bufwriter with a bigger capacity makes it faster for large files
 
-    let mut writer = BufWriter::new(output_path);
+    let writer = BufWriter::new(output_path);
     let mut xml_writer = Writer::new_with_indent(writer, ' ' as u8, 2);
 
     let buf_reader = BufReader::new(input_gml);
@@ -286,7 +246,7 @@ fn export_to_graphml(input_gml: &File, output_path: &File) {
 
     // Current graph info - todo: use struct
     let mut graph_tile: String = "Graph Title".to_string();
-    let mut directed= false;
+    let mut directed = false;
     let graph_key = "d0".to_string();
 
     // Current state - Todo: use match with enum or state machine
@@ -315,11 +275,11 @@ fn export_to_graphml(input_gml: &File, output_path: &File) {
                 // Add graph keys
                 let key_values = KeyValues {
                     id: format!("d{}", key_count),
-                    attr_type: GraphmlAttributeTypes::string
+                    attr_type: GraphmlAttributeTypes::String,
                 };
                 let key_att = KeyAttributes {
                     attr_name: "label".to_string(),
-                    for_elem: GraphmlElems::graph
+                    for_elem: GraphmlElems::Graph,
                 };
                 keys.insert(key_att, key_values);
                 key_count += 1;
@@ -334,7 +294,6 @@ fn export_to_graphml(input_gml: &File, output_path: &File) {
             edge_data.clear();
             in_node = false;
             in_edge = true;
-
         } else if line.contains("[") {
             // ignore opening lines for now (could be list item, so need to fix)
             continue;
@@ -346,20 +305,19 @@ fn export_to_graphml(input_gml: &File, output_path: &File) {
             } else if in_dict {
                 in_dict = false;
             }
-                // not needed?
+            // not needed?
             // else if in_graph {
             //     // !in_node && !in_edge && !in_dict && !in_list {
             //     // Exiting the
             //     in_graph = false;
             //     continue;
-        //    }
-        else if in_edge {
+            //    }
+            else if in_edge {
                 // Add edge when exiting an edge
-                //let edge_attributes = vec![("s", "u")];
                 add_edge(&mut xml_writer, edge_source, edge_target, &edge_data);
                 in_edge = false;
             } else if in_node {
-                // exiting node
+                // Add node and increment node id when exiting node
                 add_node(&mut xml_writer, node_id, &node_data);
                 node_id += 1;
                 in_node = false;
@@ -370,36 +328,57 @@ fn export_to_graphml(input_gml: &File, output_path: &File) {
             if line.contains(" label ") {
                 let (_, title) = parse_data_line(&line);
                 graph_tile = title;
-                continue;
             } else if line.contains(" directed ") {
                 let (_, value) = parse_data_line(&line);
                 directed = value == "1";
-                continue;
             }
+            continue;
         } else if in_node {
             // Add attributes to a node
             if line.contains(" id ") {
-                node_id = line.trim().splitn(2, char::is_whitespace).last().expect("").parse().expect("");
+                node_id = line
+                    .trim()
+                    .splitn(2, char::is_whitespace)
+                    .last()
+                    .expect("")
+                    .parse()
+                    .expect("");
                 continue;
             }
 
             let (node_attribute_label, value) = parse_data_line(&line);
 
             // Add or update keys for attribute
-            let key_id = get_key_id(&mut keys, &mut key_count, node_attribute_label, &value, GraphmlElems::node);
+            let key_id = get_key_id(
+                &mut keys,
+                &mut key_count,
+                node_attribute_label,
+                &value,
+                GraphmlElems::Node,
+            );
 
             // Add node attributes
             node_data.push((key_id, value))
-
-
         } else if in_edge {
             // Add attributes to an edge
             if line.contains("source") {
-                edge_source = line.trim().splitn(2, char::is_whitespace).last().expect("").parse().expect("Cannot parse source into int");
+                edge_source = line
+                    .trim()
+                    .splitn(2, char::is_whitespace)
+                    .last()
+                    .expect("")
+                    .parse()
+                    .expect("Cannot parse source into int");
                 continue;
             }
             if line.contains("target") {
-                edge_target = line.trim().splitn(2, char::is_whitespace).last().expect("").parse().expect("Cannot parse target into int");
+                edge_target = line
+                    .trim()
+                    .splitn(2, char::is_whitespace)
+                    .last()
+                    .expect("")
+                    .parse()
+                    .expect("Cannot parse target into int");
                 continue;
             }
             let (edge_attribute_label, value) = line
@@ -410,7 +389,13 @@ fn export_to_graphml(input_gml: &File, output_path: &File) {
                 .expect("Issues...");
 
             // Add or update keys for attribute
-            let key_id = get_key_id(&mut keys, &mut key_count, edge_attribute_label, &value, GraphmlElems::edge);
+            let key_id = get_key_id(
+                &mut keys,
+                &mut key_count,
+                edge_attribute_label,
+                &value,
+                GraphmlElems::Edge,
+            );
             edge_data.push((key_id, value)) // todo: copy instead?
         }
     }
@@ -432,31 +417,35 @@ fn parse_data_line(line: &String) -> (String, String) {
     (name, value)
 }
 
-fn get_key_id(keys: &mut HashMap<KeyAttributes, KeyValues>, key_count: &mut u32, node_attribute_label: String, value: &String, for_elem: GraphmlElems) -> String {
+fn get_key_id(
+    keys: &mut HashMap<KeyAttributes, KeyValues>,
+    key_count: &mut u32,
+    node_attribute_label: String,
+    value: &String,
+    for_elem: GraphmlElems,
+) -> String {
     // Get the key id if it already exists otherwise create a new key id
     let key_attr = KeyAttributes {
         attr_name: node_attribute_label,
-        for_elem: for_elem
+        for_elem,
     };
 
     let key_id = {
         match keys.get(&key_attr) {
-            Some(values) => {
-                values.id.clone()
-            },
+            Some(values) => values.id.clone(),
             None => {
                 // Check to see if it's a number
-                let mut attribute_type = GraphmlAttributeTypes::string;
+                let mut attribute_type = GraphmlAttributeTypes::String;
                 let is_num = value.parse::<f64>().is_ok();
                 if is_num {
                     // Todo: should we check for int too? Also, should we assume that future values of int like are ints?
                     // Ie: if a =1 then later b=1.1, ??
-                    attribute_type = GraphmlAttributeTypes::double;
+                    attribute_type = GraphmlAttributeTypes::Double;
                 }
 
                 let values = KeyValues {
                     id: format!("d{}", key_count),
-                    attr_type: attribute_type
+                    attr_type: attribute_type,
                 };
                 let id = values.id.clone();
                 keys.insert(key_attr, values);
@@ -469,7 +458,6 @@ fn get_key_id(keys: &mut HashMap<KeyAttributes, KeyValues>, key_count: &mut u32,
 }
 
 fn main() {
-
     //let filename = "/home/max/Desktop/GML Data Samples/32140213_v5.gml";
     // let filename = "./src/test_complex.gml";
     let filename = "./src/test_simple.gml";
