@@ -2,5 +2,5 @@
 # Editor files
 .idea
 
-# Generated Artifacts
-.graphml
+# Generated artifacts
+*.graphml
