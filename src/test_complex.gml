@@ -29,28 +29,26 @@ graph [
   node [
     id 4
     label "test4"
-    d [
+    dict_1 [
       item 1.0
     ]
-    nodeitems [
-        item 0.5
-        item 1
-        item 2
-        item 3
-    ]
+   # nodeitems [
+   #     item 0.5
+   #     item 1
+   #     item 2
+   #     item 3
+   # ]
   ]
-  edge
-  [
+  edge [
      source 1
      target 2
      value 1.1000
-     dictionary [
+     dict_2 [
        item1 1.0
        item2 1.0
      ]
   ]
-  edge
-  [
+  edge [
      source 3
      target 4
      list [
