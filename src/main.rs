@@ -5,20 +5,12 @@ Details:
 Keep none as empty attributes (like networkx)
 Convert lists to xml lists (unlike networkx which crashes for this step)
 
-TODO
-Need to check if large files can be loaded into a string as to not take a lot of memory, otherwise use a bufreader
-
-Nice to have:
-Btreemap for keys so that they are displayed in order
-Keys at the top of the file
-
-Nom: this is very interesting:
-https://github.com/Geal/nom/blob/master/doc/choosing_a_combinator.md
-
 URLS for info
 https://stackoverflow.com/questions/45882329/read-large-files-line-by-line-in-rust
 https://depth-first.com/articles/2020/07/20/reading-sd-files-in-rust/
  */
+use std::io::{self, Write};
+use tempfile::NamedTempFile;
 
 use itertools::Itertools;
 use std::time::Instant;
@@ -30,6 +22,7 @@ use serde_json::{json, Map, Number, Value};
 use regex::Regex;
 use std::collections::HashMap;
 use std::ffi::OsStr;
+
 use std::fs::File;
 use std::io::{BufRead, BufReader, BufWriter};
 use std::path::Path;
@@ -83,15 +76,16 @@ impl GraphmlElems {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 enum GraphmlAttributeTypes {
     Int,
-    Double,
+    Float,
     String,
 }
 impl GraphmlAttributeTypes {
     fn value(&self) -> &str {
         match *self {
             GraphmlAttributeTypes::Int => "int",
-            GraphmlAttributeTypes::Double => "double",
+            GraphmlAttributeTypes::Float => "float",
             GraphmlAttributeTypes::String => "string",
+            //GraphmlAttributeTypes::Double => "double",
         }
     }
 }
@@ -108,7 +102,7 @@ struct KeyValues {
     attr_type: GraphmlAttributeTypes,
 }
 
-fn add_header(writer: &mut Writer<BufWriter<&File>>, directed: bool) {
+fn add_header(writer: &mut Writer<BufWriter<File>>) {
     // Write the Graphml header
 
     // Add the xml declaration
@@ -129,23 +123,20 @@ fn add_header(writer: &mut Writer<BufWriter<&File>>, directed: bool) {
     writer
         .write_event(Event::Start(elem))
         .expect("Unable to write data");
-
-    // Open a graph node. Todo: add directed variable for graph
-    let mut elem = BytesStart::borrowed_name("graph".as_bytes());
-    let directed = match directed {
-        true => "directed",
-        false => "undirected",
-    };
-    elem.push_attribute(("edgedefault", directed));
-
-    writer
-        .write_event(Event::Start(elem))
-        .expect("Unable to write data");
 }
 
 fn add_graph_info(writer: &mut Writer<BufWriter<&File>>, graph_info: &GraphInfo) {
     // Add the graph name: <data key="d0">Test gml file</data>
 
+    // Open a graph node.
+    let mut elem = BytesStart::borrowed_name("graph".as_bytes());
+    match graph_info.directed {
+        true => elem.push_attribute(("edgedefault", "directed")),
+        false => elem.push_attribute(("edgedefault", "undirected")),
+    };
+    writer
+        .write_event(Event::Start(elem))
+        .expect("Unable to write data");
     let mut elem = BytesStart::borrowed_name("data".as_bytes());
     elem.push_attribute(("key", graph_info.key.as_str()));
     let text = BytesText::from_plain_str(graph_info.name.as_str());
@@ -217,10 +208,21 @@ fn add_elem_with_keys(
         .ok();
 }
 
-fn add_keys(writer: &mut Writer<BufWriter<&File>>, keys: &HashMap<KeyAttributes, KeyValues>) {
+fn add_keys(writer: &mut Writer<BufWriter<File>>, keys: &HashMap<KeyAttributes, KeyValues>) {
     // Write the list of xml keys
     // <key id="d10" for="edge" attr.name="list" attr.type="string" />
-    for (key, value) in keys.iter() {
+
+    // Todo: Sort the keys by id values
+    use std::iter::FromIterator;
+    let mut v = Vec::from_iter(keys);
+    v.sort_by(|&(_, a), &(_, b)| {
+        (a.id[1..])
+            .parse::<u32>()
+            .expect("")
+            .cmp(&(b.id[1..]).parse::<u32>().expect(""))
+    });
+
+    for (key, value) in v {
         let mut elem = BytesStart::borrowed_name("key".as_bytes());
         elem.push_attribute(("id", value.id.as_str()));
         elem.push_attribute(("for", key.for_elem.value()));
@@ -266,7 +268,7 @@ fn get_or_add_key_id(
                 // Note: it is assumed that future values of same key will be int!
                 attribute_type = GraphmlAttributeTypes::Int;
             } else if value.parse::<f64>().is_ok() {
-                attribute_type = GraphmlAttributeTypes::Double;
+                attribute_type = GraphmlAttributeTypes::Float;
             }
 
             let key_count = keys.len();
@@ -281,12 +283,14 @@ fn get_or_add_key_id(
     }
 }
 
-fn export_to_graphml(input_gml: &File, output_path: &File) {
+fn export_to_graphml(input_gml: &File, output_file: &mut File) {
     // export the graph to graphml at the output path destination
     // Todo: check if instantiating a bufwriter with a bigger capacity makes it faster for large files
+    let tmp_file = NamedTempFile::new().expect("Error creating temp file");
 
-    let writer = BufWriter::new(output_path);
+    let writer = BufWriter::new(tmp_file.as_file());
     let mut xml_writer = Writer::new_with_indent(writer, ' ' as u8, 2);
+
     let buf_reader = BufReader::new(input_gml);
 
     // Current node info - Todo initialize empty
@@ -309,7 +313,7 @@ fn export_to_graphml(input_gml: &File, output_path: &File) {
         key: "d0".to_string(),
     };
 
-    let mut header_added = false;
+    let mut graph_info_added = false;
 
     // Key info
     let mut keys: HashMap<KeyAttributes, KeyValues> = HashMap::new();
@@ -325,11 +329,9 @@ fn export_to_graphml(input_gml: &File, output_path: &File) {
     let re_edge_start = Regex::new(r"edge \[").unwrap();
     let re_graph_start = Regex::new(r"graph \[").unwrap();
     let re_closing_bracket = Regex::new(r"\]").unwrap();
-    //re.is_match(hcl)
 
     for line in buf_reader.lines() {
         let line = line.expect("Unable to read line");
-        // todo: match enum
         if line.trim().starts_with("#") {
             // skip comments - Note, comments could be added directly?
             continue;
@@ -342,11 +344,10 @@ fn export_to_graphml(input_gml: &File, output_path: &File) {
             }
             line if re_node_start.is_match(line) => {
                 // entering node data
-                if !header_added {
+                if !graph_info_added {
                     // Add graph data when entering the first node
-                    add_header(&mut xml_writer, graph.directed);
                     add_graph_info(&mut xml_writer, &graph);
-                    header_added = true;
+                    graph_info_added = true;
                 }
                 state = CurrentState::InNode;
             }
@@ -356,7 +357,7 @@ fn export_to_graphml(input_gml: &File, output_path: &File) {
             }
             line if re_closing_bracket.is_match(line) => {
                 // End previous open item (node, edge, graph, or in-items dict or list)
-                // if type in [node, edge, graph], add the data
+                // if in [node, edge, graph] add write the data
                 match state {
                     CurrentState::InNodeObject | CurrentState::InEdgeObject => {
                         // add dict and clear
@@ -459,7 +460,7 @@ fn export_to_graphml(input_gml: &File, output_path: &File) {
                         if name == list_item_staging {
                             // when all the names are the same it's a list
                             let value_object = {
-                                if value.parse::<f64>().is_ok(){
+                                if value.parse::<f64>().is_ok() {
                                     Value::Number(Number::from_str(value.as_str()).expect("Error"))
                                 } else {
                                     Value::from(value)
@@ -467,9 +468,9 @@ fn export_to_graphml(input_gml: &File, output_path: &File) {
                             };
                             // Parse the value into the correct format
 
-
-                            let key_value =
-                                inner_dict.get_mut(name.as_str()).expect("Issue retrieving key");
+                            let key_value = inner_dict
+                                .get_mut(name.as_str())
+                                .expect("Issue retrieving key");
                             if key_value.is_array() {
                                 // if the previous value was a string, add the new value to a list
                                 let mut new_vect = key_value.as_array().unwrap().clone();
@@ -479,15 +480,16 @@ fn export_to_graphml(input_gml: &File, output_path: &File) {
                                 // otherwise create a list from the old value and append the new value
                                 *key_value = json!([key_value, value_object]);
                             }
-
                         } else {
                             // add attributes to the dict currently being built
                             list_item_staging = name.clone();
                             // check if it can be parsed as a number, otherwise use string
                             match value.parse::<f64>() {
-                                Ok(val) => inner_dict.insert(
+                                Ok(_) => inner_dict.insert(
                                     name,
-                                    serde_json::Value::Number(Number::from_str(value.as_str()).expect("Eror")),
+                                    serde_json::Value::Number(
+                                        Number::from_str(value.as_str()).expect("Eror"),
+                                    ),
                                 ),
                                 Err(_) => inner_dict.insert(name, Value::String(value)),
                             };
@@ -498,8 +500,20 @@ fn export_to_graphml(input_gml: &File, output_path: &File) {
         }
     }
     // Add remaining elements
-    add_keys(&mut xml_writer, &keys);
     add_footer(&mut xml_writer);
+    // Flush the remaining buffer - could also close the scope
+    xml_writer.inner().flush();
+
+    // Write the  header, keys and graph info into another file and merge the result into the final file
+    let writer = BufWriter::new(output_file.try_clone().expect(""));
+    let mut new_xml_writer = Writer::new_with_indent(writer, ' ' as u8, 2);
+    add_header(&mut new_xml_writer);
+    add_keys(&mut new_xml_writer, &keys);
+    new_xml_writer.write("\n".as_ref()).ok();
+
+    // Merge the previous file
+    let mut src = File::open(&tmp_file).expect("Error opening source file");
+    io::copy(&mut src, output_file).expect("Error copying file");
 }
 
 fn main() {
@@ -510,7 +524,7 @@ fn main() {
     let input_file = File::open(filename).expect("Issue reading file at path");
 
     let output_path = "./src/result.graphml";
-    let output_file = File::create(output_path).expect("Unable to create file");
+    let mut output_file = File::create(output_path).expect("Unable to create file");
 
     let extension = Path::new(filename)
         .extension()
@@ -521,7 +535,7 @@ fn main() {
         "gml" => {
             println!("Converting gml file into graphml");
             let before = Instant::now();
-            export_to_graphml(&input_file, &output_file);
+            export_to_graphml(&input_file, &mut output_file);
             println!("Elapsed time: {:.2?}", before.elapsed());
         }
         "graphml" => {
