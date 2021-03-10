@@ -7,10 +7,7 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-graph-io-gml = "0.3.0"
-nom = "*"
 quick-xml = "*"
 itertools = "*"
 serde_json = "*"
-#petgraph-graphml = "2.0.1"
-#petgraph = "0.5.1"
+regex = "*"
