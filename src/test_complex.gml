@@ -31,13 +31,13 @@ graph [
     label "test4"
     dict_1 [
       item 1.0
-    ]
-   # nodeitems [
-   #     item 0.5
-   #     item 1
-   #     item 2
-   #     item 3
-   # ]
+   ]
+   nodeitems [
+       item 0.5
+       item 1
+       item 2
+       item 3
+   ]
   ]
   edge [
      source 1

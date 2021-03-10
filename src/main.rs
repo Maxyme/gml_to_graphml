@@ -25,13 +25,14 @@ use std::time::Instant;
 
 use quick_xml::events::{BytesDecl, BytesEnd, BytesStart, BytesText, Event};
 use quick_xml::Writer;
-use serde_json::json;
+use serde_json::{json, Number, Value};
 
+use std::any::type_name;
 use std::collections::HashMap;
 use std::ffi::OsStr;
-use std::path::Path;
 use std::fs::File;
 use std::io::{BufRead, BufReader, BufWriter};
+use std::path::Path;
 
 #[derive(Debug, Clone)]
 struct Node<'a> {
@@ -100,6 +101,9 @@ struct KeyValues {
     attr_type: GraphmlAttributeTypes,
 }
 
+fn type_of<T>(_: T) -> &'static str {
+    type_name::<T>()
+}
 
 fn add_header(writer: &mut Writer<BufWriter<&File>>, directed: bool) {
     // Write the Graphml header
@@ -148,13 +152,19 @@ fn add_graph_info(writer: &mut Writer<BufWriter<&File>>, graph_name: &str, key_n
     writer
         .write_event(Event::Text(text))
         .expect("Unable to write data");
-    writer.write_event(Event::End(BytesEnd::borrowed(b"data"))).ok();
+    writer
+        .write_event(Event::End(BytesEnd::borrowed(b"data")))
+        .ok();
 }
 
 fn add_footer(writer: &mut Writer<BufWriter<&File>>) {
     // Close the graph and graphml xml nodes
-    writer.write_event(Event::End(BytesEnd::borrowed(b"graph"))).ok();
-    writer.write_event(Event::End(BytesEnd::borrowed(b"graphml"))).ok();
+    writer
+        .write_event(Event::End(BytesEnd::borrowed(b"graph")))
+        .ok();
+    writer
+        .write_event(Event::End(BytesEnd::borrowed(b"graphml")))
+        .ok();
 }
 
 fn add_node(
@@ -204,9 +214,13 @@ fn add_elem_with_keys(
         writer
             .write_event(Event::Text(text))
             .expect("Unable to write data");
-        writer.write_event(Event::End(BytesEnd::borrowed(b"data"))).ok();
+        writer
+            .write_event(Event::End(BytesEnd::borrowed(b"data")))
+            .ok();
     }
-    writer.write_event(Event::End(BytesEnd::borrowed(elem_name))).ok();
+    writer
+        .write_event(Event::End(BytesEnd::borrowed(elem_name)))
+        .ok();
 }
 
 fn add_keys(writer: &mut Writer<BufWriter<&File>>, keys: &HashMap<KeyAttributes, KeyValues>) {
@@ -303,21 +317,26 @@ fn export_to_graphml(input_gml: &File, output_path: &File) {
 
     // Current dict info (inside an edge or a node)
     let mut dict_key_value: String = "".to_string(); // key value name for the dict;
-    let mut inner_dict: HashMap<String, String>  = HashMap::new();
-    let mut inner_list: Vec<String> = Vec::new();
+                                                     //let mut inner_dict: HashMap<String, String>  = HashMap::new();
+
+    let mut inner_dict = serde_json::Map::new();
+    let mut list_item_staging: String = "".to_string(); // staging item for possible lists
+                                                        // Current list info
+
+    //let mut inner_list: Vec<String> = Vec::new();
 
     // Current state - Todo: use match with enum or state machine
     let mut in_graph = false;
     let mut in_node = false;
     let mut in_edge = false;
     let mut in_dict = false;
-    let mut in_list = false;
 
     for line in buf_reader.lines() {
         let line = line.expect("Unable to read line");
         // todo: match enum
         //let skip_node_edge_opening = line.contains("[") && (!in_node || !in_edge);
-        if line.trim().starts_with("#") { //|| skip_node_edge_opening {
+        if line.trim().starts_with("#") {
+            //|| skip_node_edge_opening {
             // skip comments - Note, comments could be added directly?
             continue;
         }
@@ -327,7 +346,7 @@ fn export_to_graphml(input_gml: &File, output_path: &File) {
         //     println!("in list [")
         // }
 
-        if line.contains("node") {
+        if line.contains("node ") {
             //entering node data
             if in_graph {
                 // Add graph data when entering the first node
@@ -338,10 +357,10 @@ fn export_to_graphml(input_gml: &File, output_path: &File) {
             node_data.clear();
             in_node = true;
             in_edge = false;
-        } else if line.contains("graph") {
+        } else if line.contains("graph ") {
             // entering graph
             in_graph = true;
-        } else if line.contains("edge") {
+        } else if line.contains("edge ") {
             // entering edge
             edge_data.clear();
             in_node = false;
@@ -349,32 +368,32 @@ fn export_to_graphml(input_gml: &File, output_path: &File) {
         } else if line.contains("]") {
             // End previous open item (node, edge, graph, or in-items dict or list)
             // if type in [node, edge, graph], add the data
-            if in_list {
-                // add list and clear
-                in_list = false;
-            } else if in_dict {
+            if in_dict {
                 // add dict and clear
-                if in_edge {
-                    // Add a new key
-                    let serialized_dict = json!(inner_dict).to_string();
-                    // todo change clone?
-                    let key_id = get_or_add_key_id(&mut keys, dict_key_value.clone(), &serialized_dict, GraphmlElems::Edge);
-                    // Add node attributes
-                    node_data.push((key_id, serialized_dict));
-                    inner_dict.clear();
-                }
+                let graph_elem = {
+                    if in_edge {
+                        GraphmlElems::Edge
+                    } else {
+                        GraphmlElems::Node
+                    }
+                };
+
+                let serialized_dict = json!(inner_dict).to_string();
+                let key_id = get_or_add_key_id(
+                    &mut keys,
+                    dict_key_value.clone(),
+                    &serialized_dict,
+                    graph_elem,
+                );
+                // Add attributes
                 if in_node {
-                    // Add a new key
-                    let serialized_dict = json!(inner_dict).to_string();
-                    let key_id = get_or_add_key_id(&mut keys, dict_key_value.clone(), &serialized_dict, GraphmlElems::Node);
-                    // Add node attributes
                     node_data.push((key_id, serialized_dict));
-                    inner_dict.clear();
+                } else if in_edge {
+                    edge_data.push((key_id, serialized_dict));
                 }
+                inner_dict.clear();
                 in_dict = false;
-                // continue;
-            }
-            else if in_edge {
+            } else if in_edge {
                 // Add edge when exiting an edge
                 add_edge(&mut xml_writer, edge_source, edge_target, &edge_data);
                 in_edge = false;
@@ -388,7 +407,12 @@ fn export_to_graphml(input_gml: &File, output_path: &File) {
             // Add graph attributes
             if line.contains(" label ") {
                 let (_, title) = parse_data_line(&line);
-                get_or_add_key_id(&mut keys, "label".to_string(), &"label".to_string(), GraphmlElems::Graph);
+                get_or_add_key_id(
+                    &mut keys,
+                    "label".to_string(),
+                    &"label".to_string(),
+                    GraphmlElems::Graph,
+                );
                 graph_tile = title;
             } else if line.contains(" directed ") {
                 let (_, value) = parse_data_line(&line);
@@ -397,10 +421,44 @@ fn export_to_graphml(input_gml: &File, output_path: &File) {
         } else if in_node {
             // Add attributes to a node
             if in_dict {
-                // add attributes to the dict currently being built
                 let (name, value) = parse_data_line(&line);
-                inner_dict.insert(name, value);
-
+                if name == list_item_staging {
+                    // when all the names are the same it's list
+                    let key_value = inner_dict.get_mut(&*name).expect("Issue retrieving key");
+                    if key_value.is_array() {
+                        // if the previous value was a string, add the new value to a list
+                        let mut new_vect = key_value.as_array().unwrap().clone();
+                        match value.parse::<f64>() {
+                            Ok(val) => new_vect.push(serde_json::Value::Number(
+                                Number::from_f64(val).expect("Eror"),
+                            )),
+                            Err(val) => new_vect.push(Value::from(value)),
+                        };
+                        *key_value = json!(new_vect);
+                    } else if key_value.is_string() {
+                        // otherwise append to the current list
+                        *key_value = json!([key_value.as_str().unwrap(), value]);
+                    } else if key_value.is_number() {
+                        // otherwise append to the current list
+                        *key_value = json!([
+                            key_value.as_f64().unwrap(),
+                            Value::Number(
+                                Number::from_f64(value.parse::<f64>().expect("")).expect("Eror")
+                            )
+                        ]);
+                    }
+                } else {
+                    // add attributes to the dict currently being built
+                    list_item_staging = name.clone();
+                    // check if it can be parsed as a number, otherwise use string
+                    match value.parse::<f64>() {
+                        Ok(val) => inner_dict.insert(
+                            name,
+                            serde_json::Value::Number(Number::from_f64(val).expect("Eror")),
+                        ),
+                        Err(val) => inner_dict.insert(name, Value::String(value)),
+                    };
+                }
             } else if line.contains(" id ") {
                 let (_, value) = parse_data_line(&line);
                 node_id = value.parse().expect("");
@@ -422,8 +480,43 @@ fn export_to_graphml(input_gml: &File, output_path: &File) {
             // Add attributes to an edge
             if in_dict {
                 let (name, value) = parse_data_line(&line);
-                inner_dict.insert(name, value);
-
+                if name == list_item_staging {
+                    // when all the names are the same it's list
+                    let key_value = inner_dict.get_mut(&*name).expect("Issue retrieving key");
+                    if key_value.is_array() {
+                        // if the previous value was a string, add the new value to a list
+                        let mut new_vect = key_value.as_array().unwrap().clone();
+                        match value.parse::<f64>() {
+                            Ok(val) => new_vect.push(serde_json::Value::Number(
+                                Number::from_f64(val).expect("Eror"),
+                            )),
+                            Err(val) => new_vect.push(Value::from(value)),
+                        };
+                        *key_value = json!(new_vect);
+                    } else if key_value.is_string() {
+                        // otherwise append to the current list
+                        *key_value = json!([key_value.as_str().unwrap(), value]);
+                    } else if key_value.is_number() {
+                        // otherwise append to the current list
+                        *key_value = json!([
+                            key_value.as_f64().unwrap(),
+                            Value::Number(
+                                Number::from_f64(value.parse::<f64>().expect("")).expect("Eror")
+                            )
+                        ]);
+                    }
+                } else {
+                    // add attributes to the dict currently being built
+                    list_item_staging = name.clone();
+                    // check if it can be parsed as a number, otherwise use string
+                    match value.parse::<f64>() {
+                        Ok(val) => inner_dict.insert(
+                            name,
+                            serde_json::Value::Number(Number::from_f64(val).expect("Eror")),
+                        ),
+                        Err(val) => inner_dict.insert(name, Value::String(value)),
+                    };
+                }
             } else if line.contains("source") {
                 let (_, value) = parse_data_line(&line);
                 edge_source = value.parse().expect("Error parsing to int");
@@ -440,12 +533,7 @@ fn export_to_graphml(input_gml: &File, output_path: &File) {
                     continue;
                 }
                 // Add or update keys for attribute
-                let key_id = get_or_add_key_id(
-                    &mut keys,
-                    name,
-                    &value,
-                    GraphmlElems::Edge,
-                );
+                let key_id = get_or_add_key_id(&mut keys, name, &value, GraphmlElems::Edge);
                 edge_data.push((key_id, value))
             }
         }
@@ -456,7 +544,7 @@ fn export_to_graphml(input_gml: &File, output_path: &File) {
 }
 
 fn main() {
-
+    //let filename = "/home/max/Desktop/GML Data Samples/32140213_v5.gml";
     let filename = "./src/test_complex.gml";
     //let filename = "./src/test_simple.gml";
     let input_file = File::open(filename).expect("Issue reading file at path");
