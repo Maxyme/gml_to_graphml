@@ -1,6 +1,8 @@
 graph [
   label "Test gml file"
   directed 0
+  graph_item "[]"
+  other_thing 1
   # this is a comment
   node [
     # this is another comment

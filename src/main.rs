@@ -17,11 +17,13 @@ use std::time::Instant;
 use std::fs::File;
 use std::path::Path;
 mod gml_to_graphml;
+mod graphml_to_gml;
 
 fn main() {
     //let filename = "/home/max/Desktop/GML Data Samples/32161455.gml";
     let filename = "./src/test_complex.gml";
     //let filename = "./src/test_simple.gml";
+    //let filename = "./src/test_simple.graphml";
     let input_file = File::open(filename).expect("Issue reading file at path");
 
     let output_path = "./src/result.graphml";
@@ -31,17 +33,17 @@ fn main() {
         .extension()
         .and_then(OsStr::to_str)
         .expect("Error: File extension could not be detected!");
-
+    let before = Instant::now();
     match extension {
         "gml" => {
             println!("Converting gml file into graphml");
-            let before = Instant::now();
             gml_to_graphml::export_to_graphml(&input_file, &mut output_file);
-            println!("Elapsed time: {:.2?}", before.elapsed());
         }
         "graphml" => {
             println!("Converting graphml file into.gml");
+            graphml_to_gml::export_to_gml(&input_file, &mut output_file);
         }
         _ => panic!("Unexpected file format"),
     }
+    println!("Elapsed time: {:.2?}", before.elapsed());
 }

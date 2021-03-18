@@ -1,3 +1,5 @@
+// GML to graphml converter
+
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::{copy, BufRead, BufReader, BufWriter, Write};
@@ -10,6 +12,7 @@ use serde_json::{json, Map, Number, Value};
 use tempfile::NamedTempFile;
 
 use std::str::FromStr;
+use std::ops::Index;
 
 #[derive(Debug, Clone)]
 struct Node {
@@ -26,9 +29,8 @@ struct Edge {
 
 #[derive(Debug, Clone)]
 struct GraphInfo {
-    name: String,
     directed: bool,
-    key: String,
+    data: Vec<(String, String)>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Copy)]
@@ -111,30 +113,15 @@ fn add_header(writer: &mut Writer<BufWriter<File>>) {
         .expect("Unable to write data");
 }
 
-fn add_graph_info(writer: &mut Writer<BufWriter<&File>>, graph_info: &GraphInfo) {
-    // Add the graph name: <data key="d0">Test gml file</data>
-
-    // Open a graph node.
-    let mut elem = BytesStart::borrowed_name("graph".as_bytes());
-    match graph_info.directed {
+fn add_graph_info(writer: &mut Writer<BufWriter<&File>>, graph: &GraphInfo) {
+    // Add the graph node: <data key="d0">Test gml file</data>
+    let name = "graph".as_bytes();
+    let mut elem = BytesStart::borrowed_name(name);
+    match graph.directed {
         true => elem.push_attribute(("edgedefault", "directed")),
         false => elem.push_attribute(("edgedefault", "undirected")),
     };
-    writer
-        .write_event(Event::Start(elem))
-        .expect("Unable to write data");
-    let mut elem = BytesStart::borrowed_name("data".as_bytes());
-    elem.push_attribute(("key", graph_info.key.as_str()));
-    let text = BytesText::from_plain_str(graph_info.name.as_str());
-    writer
-        .write_event(Event::Start(elem))
-        .expect("Unable to write data");
-    writer
-        .write_event(Event::Text(text))
-        .expect("Unable to write data");
-    writer
-        .write_event(Event::End(BytesEnd::borrowed(b"data")))
-        .ok();
+    add_elem_with_keys(writer, &graph.data, elem, name, false);
 }
 
 fn add_footer(writer: &mut Writer<BufWriter<&File>>) {
@@ -152,7 +139,7 @@ fn add_node(writer: &mut Writer<BufWriter<&File>>, node: &Node) {
     let name = "node".as_bytes();
     let mut node_elem = BytesStart::borrowed_name(name);
     node_elem.push_attribute(("id", node.id.as_str()));
-    add_elem_with_keys(writer, &node.data, node_elem, name);
+    add_elem_with_keys(writer, &node.data, node_elem, name, true);
 }
 
 fn add_edge(writer: &mut Writer<BufWriter<&File>>, edge: &Edge) {
@@ -161,7 +148,7 @@ fn add_edge(writer: &mut Writer<BufWriter<&File>>, edge: &Edge) {
     let mut edge_elem = BytesStart::borrowed_name(name);
     edge_elem.push_attribute(("source", edge.source.as_str()));
     edge_elem.push_attribute(("target", edge.target.as_str()));
-    add_elem_with_keys(writer, &edge.data, edge_elem, name);
+    add_elem_with_keys(writer, &edge.data, edge_elem, name, true);
 }
 
 fn add_elem_with_keys(
@@ -169,6 +156,7 @@ fn add_elem_with_keys(
     elem_data: &Vec<(String, String)>,
     elem: BytesStart,
     elem_name: &[u8],
+    close: bool
 ) {
     // Add a xml element with data keys
     writer
@@ -189,9 +177,11 @@ fn add_elem_with_keys(
             .write_event(Event::End(BytesEnd::borrowed(b"data")))
             .ok();
     }
-    writer
-        .write_event(Event::End(BytesEnd::borrowed(elem_name)))
-        .ok();
+    if close {
+        writer
+            .write_event(Event::End(BytesEnd::borrowed(elem_name)))
+            .ok();
+    }
 }
 
 fn add_keys(writer: &mut Writer<BufWriter<File>>, keys: &HashMap<KeyAttributes, KeyValues>) {
@@ -221,12 +211,12 @@ fn add_keys(writer: &mut Writer<BufWriter<File>>, keys: &HashMap<KeyAttributes, 
 }
 
 fn parse_data_line(line: &String) -> (String, String) {
-    // Parse a single data line to extract name a value
-    // TODO extract dicts, list too...
+    // Parse a single data line to extract name a value, remove superfluous quotes around a string
+    // Todo: use regex to only replace quotes if at start and end of string
     let (name, value): (String, String) = line
         .trim()
         .splitn(2, char::is_whitespace)
-        .map(|x| x.to_string())
+        .map(|x| x.replace("\"", ""))
         .collect_tuple()
         .expect("Error parsing data");
 
@@ -270,7 +260,8 @@ fn get_or_add_key_id(
 }
 
 pub fn export_to_graphml(input_gml: &File, output_file: &mut File) {
-    // export the graph to graphml at the output path destination
+    // Convert the import file to graphml using a bufreader and xml bufwriter
+    // Write to a temp file and copy the file with header information added after at the output path destination
     // Todo: check if instantiating a bufwriter with a bigger capacity makes it faster for large files
     let tmp_file = NamedTempFile::new().expect("Error creating temp file");
 
@@ -282,7 +273,7 @@ pub fn export_to_graphml(input_gml: &File, output_file: &mut File) {
     // Current node info - Todo initialize empty
     let mut node = Node {
         id: "".to_string(),
-        data: vec![],
+        data: Vec::new(),
     };
 
     // Current edge info
@@ -294,9 +285,8 @@ pub fn export_to_graphml(input_gml: &File, output_file: &mut File) {
 
     // Current graph info
     let mut graph = GraphInfo {
-        name: "Graph Title".to_string(),
         directed: false,
-        key: "d0".to_string(),
+        data: Vec::new(),
     };
 
     let mut graph_info_added = false;
@@ -341,9 +331,10 @@ pub fn export_to_graphml(input_gml: &File, output_file: &mut File) {
                 // entering edge
                 state = CurrentState::InEdge;
             }
-            line if re_closing_bracket.is_match(line) => {
+            line if re_closing_bracket.is_match(line) && line.trim().len() == 1 => {
                 // End previous open item (node, edge, graph, or in-items dict or list)
                 // if in [node, edge, graph] add write the data
+                // Note, only if the line contains a closing bracket and nothing else ie ("[]" would not work)
                 match state {
                     CurrentState::InNodeObject | CurrentState::InEdgeObject => {
                         // add dict and clear
@@ -395,19 +386,24 @@ pub fn export_to_graphml(input_gml: &File, output_file: &mut File) {
                     CurrentState::InGraph => {
                         // Add graph attributes
                         match name.as_str() {
-                            "label" => {
-                                get_or_add_key_id(
-                                    &mut keys,
-                                    "label".to_string(),
-                                    &"label".to_string(),
-                                    GraphmlElems::Graph,
-                                );
-                                graph.name = value;
-                            }
+                            // "label" => {
+                            //     get_or_add_key_id(
+                            //         &mut keys,
+                            //         "label".to_string(),
+                            //         &"label".to_string(),
+                            //         GraphmlElems::Graph,
+                            //     );
+                            //     //graph.name = value;
+                            // }
                             "directed" => {
                                 graph.directed = value == "1";
                             }
-                            _ => continue, // skip other attributes for now
+                            _ => {
+                                let key_id =
+                                    get_or_add_key_id(&mut keys, name, &value, GraphmlElems::Graph);
+                                // Add graph attributes
+                                graph.data.push((key_id, value))
+                            },
                         };
                     }
                     CurrentState::InNode => {
