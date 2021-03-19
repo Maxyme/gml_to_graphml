@@ -8,6 +8,7 @@ graph [
   ]
   node [
     id 2
+    weight 1.0
   ]
   edge [
      source 1

@@ -1,0 +1,25 @@
+<?xml version='1.0' encoding='utf-8'?>
+<graphml xmlns="http://graphml.graphdrawing.org/xmlns" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://graphml.graphdrawing.org/xmlns http://graphml.graphdrawing.org/xmlns/1.0/graphml.xsd">
+  <key id="d1" for="edge" attr.name="a" attr.type="double" />
+  <key id="d0" for="node" attr.name="b" attr.type="double" />
+  <key id="d2" for="node" attr.name="test1" attr.type="string" />
+  <key id="d3" for="graph" attr.name="g_label" attr.type="string" />
+  <key id="d4" for="graph" attr.name="g_graph_item" attr.type="string" />
+  <key id="d5" for="graph" attr.name="g_graph_item" attr.type="float" />
+  <graph edgedefault="undirected">
+    <data key="d3">Test gml file</data>
+    <data key="d4">[]</data>
+    <data key="d5">1.55</data>
+    <node id="1">
+      <data key="d0">1.0</data>
+      <data key="d2">value_1</data>
+    </node>
+    <node id="2">
+      <data key="d0">2.0</data>
+      <data key="d2">value_2</data>
+    </node>
+    <edge source="1" target="2">
+      <data key="d1">1.1</data>
+    </edge>
+  </graph>
+</graphml>

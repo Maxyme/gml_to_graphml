@@ -13,6 +13,7 @@ use tempfile::NamedTempFile;
 
 use std::str::FromStr;
 use std::ops::Index;
+use std::path::Path;
 
 #[derive(Debug, Clone)]
 struct Node {
@@ -259,16 +260,19 @@ fn get_or_add_key_id(
     }
 }
 
-pub fn export_to_graphml(input_gml: &File, output_file: &mut File) {
+pub fn export_to_graphml(input_gml: &Path, output_path: &Path) {
     // Convert the import file to graphml using a bufreader and xml bufwriter
     // Write to a temp file and copy the file with header information added after at the output path destination
     // Todo: check if instantiating a bufwriter with a bigger capacity makes it faster for large files
     let tmp_file = NamedTempFile::new().expect("Error creating temp file");
 
+    let mut output_file = File::create(output_path).expect("Unable to create file");
+
     let writer = BufWriter::new(tmp_file.as_file());
     let mut xml_writer = Writer::new_with_indent(writer, ' ' as u8, 2);
 
-    let buf_reader = BufReader::new(input_gml);
+    let input_file = File::open(input_gml).expect("Issue reading file at path");
+    let buf_reader = BufReader::new(input_file);
 
     // Current node info - Todo initialize empty
     let mut node = Node {
@@ -376,7 +380,7 @@ pub fn export_to_graphml(input_gml: &File, output_file: &mut File) {
                         state = CurrentState::InGraph;
                         node.data.clear();
                     }
-                    CurrentState::InGraph => continue, // graph completed or brackets in graph, ignore
+                    CurrentState::InGraph => continue // graph completed, ignore
                 };
             }
             _ => {
@@ -386,15 +390,6 @@ pub fn export_to_graphml(input_gml: &File, output_file: &mut File) {
                     CurrentState::InGraph => {
                         // Add graph attributes
                         match name.as_str() {
-                            // "label" => {
-                            //     get_or_add_key_id(
-                            //         &mut keys,
-                            //         "label".to_string(),
-                            //         &"label".to_string(),
-                            //         GraphmlElems::Graph,
-                            //     );
-                            //     //graph.name = value;
-                            // }
                             "directed" => {
                                 graph.directed = value == "1";
                             }
@@ -403,7 +398,7 @@ pub fn export_to_graphml(input_gml: &File, output_file: &mut File) {
                                     get_or_add_key_id(&mut keys, name, &value, GraphmlElems::Graph);
                                 // Add graph attributes
                                 graph.data.push((key_id, value))
-                            },
+                            }
                         };
                     }
                     CurrentState::InNode => {
@@ -493,5 +488,5 @@ pub fn export_to_graphml(input_gml: &File, output_file: &mut File) {
 
     // Merge the previous file
     let mut src = File::open(&tmp_file).expect("Error opening source file");
-    copy(&mut src, output_file).expect("Error copying file");
+    copy(&mut src, &mut output_file).expect("Error copying file");
 }

@@ -11,8 +11,8 @@ graph [
     a 1.1
     b 2.5555555
     dict_str [
-        a value_1
-        b value_2
+        a "value_1"
+        b "value_2"
     ]
   ]
   node [
@@ -21,8 +21,12 @@ graph [
     a 5
     c 0.0
     list_str [
-        a test_1
-        a test_2
+        a "test_1"
+        a "test_2"
+    ]
+    list_int [
+        a 2
+        a 4
     ]
   ]
   node [
@@ -38,6 +42,12 @@ graph [
     list_1 [
        a 0.1
        a 0.2
+    ]
+    dict_with_list [
+      category 0.5
+        i 13
+        i 14
+      ]
     ]
   ]
   node [
