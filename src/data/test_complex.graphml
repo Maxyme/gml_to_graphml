@@ -1,9 +1,10 @@
 <?xml version='1.0' encoding='utf-8'?>
 <graphml xmlns="http://graphml.graphdrawing.org/xmlns" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://graphml.graphdrawing.org/xmlns http://graphml.graphdrawing.org/xmlns/1.0/graphml.xsd">
+  <key id="d11" for="node" attr.name="json" attr.type="string" />
   <key id="d10" for="edge" attr.name="list" attr.type="string" />
   <key id="d9" for="edge" attr.name="dictionary" attr.type="string" />
   <key id="d8" for="edge" attr.name="value" attr.type="double" />
-  <key id="d7" for="node" attr.name="nodeitems" attr.type="string" />
+  <key id="d7" for="node" attr.name="node_items" attr.type="string" />
   <key id="d6" for="node" attr.name="d" attr.type="string" />
   <key id="d5" for="node" attr.name="c" attr.type="double" />
   <key id="d4" for="node" attr.name="a" attr.type="int" />
@@ -27,6 +28,7 @@
       <data key="d2">367.0618067245002</data>
       <data key="d3">0.03230269781364574</data>
       <data key="d5">0.04307026375152765</data>
+      <data key="d11">{&quot;a&quot;:[&quot;test_1&quot;,&quot;test_2&quot;]}</data>
     </node>
     <node id="3">
       <data key="d1">test3</data>

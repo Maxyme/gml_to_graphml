@@ -11,8 +11,8 @@ graph [
     a 1.1
     b 2.5555555
     dict_str [
-        a "value_1"
-        b "value_2"
+      a "value_1"
+      b "value_2"
     ]
   ]
   node [
@@ -21,12 +21,12 @@ graph [
     a 5
     c 0.0
     list_str [
-        a "test_1"
-        a "test_2"
+      a "test_1"
+      a "test_2"
     ]
     list_int [
-        a 2
-        a 4
+      a 2
+      a 4
     ]
   ]
   node [
@@ -40,8 +40,8 @@ graph [
     id 3
     label "test3"
     list_1 [
-       a 0.1
-       a 0.2
+      a 0.1
+      a 0.2
     ]
     dict_with_list [
       category 0.5
@@ -57,8 +57,8 @@ graph [
       item_float 1.0
     ]
     list_1 [
-       a 0.2
-       a 0.3
+      a 0.2
+      a 0.3
     ]
   ]
   edge [
@@ -75,10 +75,10 @@ graph [
      target 4
      value_int 3
      list_2 [
-        b 1
-        b 2
-        b 3
-        b 4
+       b 1
+       b 2
+       b 3
+       b 4
     ]
   ]
 ]

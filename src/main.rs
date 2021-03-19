@@ -26,7 +26,7 @@ fn main() {
     //let filename = "./src/test_simple.gml";
     //let filename = "./src/test_simple.graphml";
 
-    let filename = "./src/data/result_simple.graphml";
+    //let filename = "./src/data/result_simple.graphml";
     let input_path = Path::new(filename);
 
 
@@ -39,7 +39,7 @@ fn main() {
     //     .and_then(OsStr::to_str)
     //     .expect("Error: File extension could not be detected!");
 
-    let command = "graphml_to_gml"; //"gml_to_graphml"; //"gml_to_gml"; //
+    let command = "gml_to_graphml"; //"graphml_to_gml"; //"gml_to_graphml"; //"gml_to_gml"; //
     let before = Instant::now();
     match command {
         "gml_to_graphml" => {

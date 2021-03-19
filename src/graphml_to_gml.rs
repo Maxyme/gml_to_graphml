@@ -12,6 +12,10 @@ use std::ffi::OsStr;
 use std::collections::HashMap;
 use std::str;
 use std::borrow::Cow;
+use std::error::Error;
+use quick_xml::events::attributes::Attributes;
+use regex::Regex;
+use serde_json::Value;
 
 // Todo: share these objects between the 2 classes?
 #[derive(Debug, Clone)]
@@ -71,10 +75,8 @@ fn write_graph_start(writer: &mut BufWriter<&File>, graph: &GraphInfo) {
     writer.write(format!("{}directed 0", graph_increment).as_bytes()).ok();  // todo: parse edgedefault="undirected"
     writer.write("\r\n".as_bytes()).ok();
     // Add data in a loop
-    for (key, value) in graph.data.iter() {
-        writer.write(format!("{}{} {}", graph_increment, key, value).as_ref()).ok();
-        writer.write("\r\n".as_bytes()).expect("");
-    }
+    write_items(writer, &graph.data, graph_increment);
+    // Note, not closing yet, as this will be done at the end
 }
 
 fn write_graph_end(writer: &mut BufWriter<&File>) {
@@ -95,10 +97,7 @@ fn write_edge(writer: &mut BufWriter<&File>, edge: &Edge) {
     writer.write(format!("{}target {}", data_increment, edge.target).as_ref()).ok();
     writer.write("\r\n".as_bytes()).expect("");
     // Add data in a loop
-    for (key, value) in edge.data.iter() {
-        writer.write(format!("{}{} {}", data_increment, key, value).as_ref()).ok();
-        writer.write("\r\n".as_bytes()).expect("");
-    }
+    write_items(writer, &edge.data, data_increment);
     // Close node
     writer.write(format!("{}]", edge_increment).as_bytes()).ok();
     writer.write("\r\n".as_bytes()).expect("");
@@ -113,13 +112,77 @@ fn write_node(writer: &mut BufWriter<&File>, node: &Node) {
     writer.write(format!("{}id {}", data_increment, node.id).as_ref()).ok();
     writer.write("\r\n".as_bytes()).expect("");
     // Add data in a loop
-    for (key, value) in node.data.iter() {
-        writer.write(format!("{}{} {}", data_increment, key, value).as_ref()).ok();
-        writer.write("\r\n".as_bytes()).expect("");
-    }
+    write_items(writer, &node.data, data_increment);
     // Close node
     writer.write(format!("{}]", node_increment).as_bytes()).ok();
     writer.write("\r\n".as_bytes()).expect("");
+}
+
+fn write_items(writer: &mut BufWriter<&File>, data: &Vec<(String,String)>, data_increment: String) {
+    for (key, value) in data.iter() {
+        // check if the value is a dict or a list, which means it starts with "{ and ends with }"
+        //if re_is_dict.is_match(&value) {
+        if value.contains("{") {
+            // todo, try parsing as json and if it fails, just add as string? Why would { be in a value?!
+            let new_value = value.replace("\"{", "{").replace("}\"", "}");
+            println!("{:?}", value);
+            let map: Value = serde_json::from_str(new_value.as_str()).expect("Issue parsing into json");
+            write_dict(writer, &map, key);
+        } else {
+            writer.write(format!("{}{} {}", data_increment, key, value).as_ref()).ok();
+            writer.write("\r\n".as_bytes()).expect("");
+        }
+    }
+}
+
+
+fn get_value_with_increment(key: &String, item: &Value) -> String {
+    // add the values with an increment
+    let increment = " ".repeat(2);
+    if item.is_f64() {
+        format!("{}{} {:?}", increment, key, item.as_f64().expect(""))
+    } else if item.is_i64() {
+        format!("{}{} {:?}", increment, key, item.as_i64().expect(""))
+    } else if item.is_string() {
+        format!("{}{} {:?}", increment, key, item.as_str().expect(""))
+    } else {
+        "WTF".to_string()
+        //panic!("WTF");
+    }
+}
+
+fn write_dict(writer: &mut BufWriter<&File>, json: &Value, dict_key: &String) {
+    let dict_increment = " ".repeat(4);
+
+    // Open dict
+    writer.write(format!("{}{} [",dict_increment, dict_key).as_bytes()).ok();
+    writer.write("\r\n".as_bytes()).expect("");
+    // todo: there should only be one value?
+    for (key, value) in json.as_object().expect("Value isn't valid a dict object") {
+        match value {
+            value if value.is_array() => {
+                // add key [ into the lines
+                for item in value.as_array().expect("").iter() {
+                    // add value and incrementation (2 spaces)
+                    let value_string = get_value_with_increment(key, item);
+                    writer.write(format!("{}{}",dict_increment, value_string).as_bytes()).ok();
+                    writer.write("\r\n".as_bytes()).expect("");
+                }
+            },
+            _ => {
+                // value is an object
+                let value_string = get_value_with_increment(key, value);
+                writer.write(format!("{}{}",dict_increment, value_string).as_bytes()).ok();
+                writer.write("\r\n".as_bytes()).expect("");
+            }
+        }
+    }
+    // Close dict
+    writer.write(format!("{}]", dict_increment).as_bytes()).ok();
+    writer.write("\r\n".as_bytes()).expect("");
+
+    //return_values.push(format!("{}]", increment));
+    //return_values
 }
 
 pub fn export_to_gml(input_graphml: &Path, output_path: &Path) {
@@ -143,10 +206,9 @@ pub fn export_to_gml(input_graphml: &Path, output_path: &Path) {
     };
 
     let mut current_edge = Edge {
-        source: Default::default(), //"".to_string(),
+        source: Default::default(),
         target: Default::default(),
-        data: Default::default(), //vec![],
-        //target: "".to_string()
+        data: Default::default(),
     };
 
     let mut current_graph = GraphInfo {
@@ -154,18 +216,27 @@ pub fn export_to_gml(input_graphml: &Path, output_path: &Path) {
         data: vec![],
     };
 
+    let re_is_dict = Regex::new(r#"^"\{(.+)}"$"#).unwrap();
+
     loop {
         match reader.read_event(&mut buf) {
             Ok(Event::Decl(ref e)) => {
                 // Ignore the xml declaration
-                continue
             },
             Ok(Event::Start(ref e)) => {
                 match e.name() {
+                    b"graphml" => {
+                        // ignore graphml tag attributes
+                    },
                     b"graph" => {
-                        println!("Inside graph");
-                        for attr in e.attributes() {
-                            println!("{:?}", attr.ok());
+                        current_graph.directed = match get_attribute(e.html_attributes(), b"edgedefault"){
+                            Ok(value) => {
+                                value == "directed"
+                            }
+                            Err(_) => {
+                                // default is false
+                                false
+                            }
                         }
                     },
                     b"node" => {
@@ -174,47 +245,23 @@ pub fn export_to_gml(input_graphml: &Path, output_path: &Path) {
                             write_graph_start(&mut writer, &current_graph);
                             graph_info_added = true;
                         }
+                        current_node.id = get_attribute(e.html_attributes(), b"id").ok().expect("");
                         state = CurrentState::InNode;
-                        // get current node id
-                        for attr in e.html_attributes() {
-                            let val = attr.ok().expect("Attribute");
-                            if val.key == b"id" {
-                                current_node.id = str::from_utf8(val.value.as_ref()).expect("").to_string();
-                            }
-                        }
                     },
                     b"edge" => {
-                        println!("start edge");
-                        for attr in e.attributes() {
-                            println!("{:?}", attr.ok());
-                        }
+                        current_edge.target = get_attribute(e.html_attributes(), b"target").ok().expect("");
+                        current_edge.source = get_attribute(e.html_attributes(), b"source").ok().expect("");
                         state = CurrentState::InEdge;
-                        for attr in e.html_attributes() {
-                            let val = attr.ok().expect("Attribute");
-                            if val.key == b"target" {
-                                current_edge.target = str::from_utf8(val.value.as_ref()).expect("").to_string();
-                                //current_edge.target = val.value;
-                            }
-                            if val.key == b"source" {
-                                current_edge.source = str::from_utf8(val.value.as_ref()).expect("").to_string();
-                            }
-                        }
                     },
 
                     b"data" => {
-                        println!("Enter data {:?}", e);
-                        //let mut key: &[u8];
-                        for attr in e.html_attributes() {
-                            let val = attr.ok().expect("Attribute");
-                            if val.key == b"key" {
-                                //current_data_key = val.value.as_ref();
-                                current_data_key = str::from_utf8(val.value.as_ref()).expect("").to_string();
-                            }
-                        }
-                        //current_data_key = key;
+                        // get the key value when entering a data tag
+                        current_data_key = get_attribute(e.html_attributes(), b"key").ok().expect("");
                         in_data = true;
                     },
-                    _ => (),
+                    _ => {
+                        panic!("Unsupported tag value {:?}", str::from_utf8(e.name().as_ref()).expect(""))
+                    }
                 }
             },
             Ok(Event::End(ref e)) => {
@@ -286,16 +333,16 @@ pub fn export_to_gml(input_graphml: &Path, output_path: &Path) {
             // unescape and decode the text event using the reader encoding
             Ok(Event::Text(e)) => {
                 //let v = reader.decode(e).ok();
+                // Extract the string data if in a data tag inside a node, edge or graph only
                 let mut value = e.unescape_and_decode(&reader).ok().expect("Error getting value");
 
                 if !in_data {
                     // Ignore text when not in data tag
                     continue
-                    //println!("Data is {:?}", text.expect(""));
                 }
                 // Get the attribute name from the current data key
-                let cur_key = str::from_utf8(current_data_key.clone().as_ref()).expect("").to_string();
-                let key = keys.get(&*cur_key).expect("issue getting key");
+                //let cur_key = str::from_utf8(current_data_key.clone().as_ref()).expect("").to_string();
+                let key = keys.get(&*current_data_key).expect("issue getting key");
                 if key.attr_type == ValueTypes::String {
                     // Add quotes around value if it's a string
                     // todo: check for json here first, as this won't work
@@ -322,7 +369,19 @@ pub fn export_to_gml(input_graphml: &Path, output_path: &Path) {
         buf.clear();
     }
 
-    println!("{:?}", keys);
+    //println!("{:?}", keys);
+}
+
+fn get_attribute(attributes: Attributes, search_term: &[u8]) -> Result<String, String> {
+    for attr in attributes { // e.html_attributes() {
+        let val = attr.ok().expect("Attribute");
+        if val.key == search_term { //b"id" {
+            //current_node.id = str::from_utf8(val.value.as_ref()).expect("").to_string();
+            let value_as_string = str::from_utf8(val.value.as_ref()).expect("").to_string();
+            return Ok(value_as_string);
+        }
+    }
+    Err("Error: attribute not found".to_string())
 }
 
 #[cfg(test)]
