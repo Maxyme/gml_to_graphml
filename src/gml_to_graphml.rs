@@ -11,9 +11,8 @@ use regex::Regex;
 use serde_json::{json, Map, Number, Value};
 use tempfile::NamedTempFile;
 
-use std::str::FromStr;
-use std::ops::Index;
 use std::path::Path;
+use std::str::FromStr;
 
 #[derive(Debug, Clone)]
 struct Node {
@@ -118,10 +117,8 @@ fn add_graph_info(writer: &mut Writer<BufWriter<&File>>, graph: &GraphInfo) {
     // Add the graph node: <data key="d0">Test gml file</data>
     let name = "graph".as_bytes();
     let mut elem = BytesStart::borrowed_name(name);
-    match graph.directed {
-        true => elem.push_attribute(("edgedefault", "directed")),
-        false => elem.push_attribute(("edgedefault", "undirected")),
-    };
+    let direction = if graph.directed { "directed" } else { "undirected" };
+    elem.push_attribute(("edgedefault", direction));
     add_elem_with_keys(writer, &graph.data, elem, name, false);
 }
 
@@ -157,9 +154,9 @@ fn add_elem_with_keys(
     elem_data: &Vec<(String, String)>,
     elem: BytesStart,
     elem_name: &[u8],
-    close: bool
+    close: bool,
 ) {
-    // Add a xml element with data keys
+    // Add a xml element with data keys. Note close is false for graph as it is closed at the end
     writer
         .write_event(Event::Start(elem))
         .expect("Unable to write data");
@@ -170,7 +167,8 @@ fn add_elem_with_keys(
             .write_event(Event::Start(data))
             .expect("Unable to write data");
         // Note: use from_plain_str instead to escape double quotes if present
-        let text = BytesText::from_escaped_str(value.as_str());
+        //let text = BytesText::from_escaped_str(value.as_str());
+        let text = BytesText::from_plain_str(value.as_str());
         writer
             .write_event(Event::Text(text))
             .expect("Unable to write data");
@@ -380,7 +378,7 @@ pub fn export_to_graphml(input_gml: &Path, output_path: &Path) {
                         state = CurrentState::InGraph;
                         node.data.clear();
                     }
-                    CurrentState::InGraph => continue // graph completed, ignore
+                    CurrentState::InGraph => continue, // graph completed, ignore
                 };
             }
             _ => {

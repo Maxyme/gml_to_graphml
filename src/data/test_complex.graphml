@@ -1,50 +1,64 @@
-<?xml version='1.0' encoding='utf-8'?>
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <graphml xmlns="http://graphml.graphdrawing.org/xmlns" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://graphml.graphdrawing.org/xmlns http://graphml.graphdrawing.org/xmlns/1.0/graphml.xsd">
-  <key id="d11" for="node" attr.name="json" attr.type="string" />
-  <key id="d10" for="edge" attr.name="list" attr.type="string" />
-  <key id="d9" for="edge" attr.name="dictionary" attr.type="string" />
-  <key id="d8" for="edge" attr.name="value" attr.type="double" />
-  <key id="d7" for="node" attr.name="node_items" attr.type="string" />
-  <key id="d6" for="node" attr.name="d" attr.type="string" />
-  <key id="d5" for="node" attr.name="c" attr.type="double" />
-  <key id="d4" for="node" attr.name="a" attr.type="int" />
-  <key id="d3" for="node" attr.name="b" attr.type="double" />
-  <key id="d2" for="node" attr.name="a" attr.type="double" />
-  <key id="d1" for="node" attr.name="label" attr.type="string" />
-  <key id="d0" for="graph" attr.name="label" attr.type="string" />
-  <graph edgedefault="undirected">
-    <node id="0">
-      <data key="d1">test0</data>
-      <data key="d2">1.1</data>
-      <data key="d3">2.5555555</data>
-    </node>
-    <node id="1">
-      <data key="d1">test1</data>
-      <data key="d4">5</data>
-      <data key="d5">0.0</data>
-    </node>
-    <node id="2">
-      <data key="d1">test2</data>
-      <data key="d2">367.0618067245002</data>
-      <data key="d3">0.03230269781364574</data>
-      <data key="d5">0.04307026375152765</data>
-      <data key="d11">{&quot;a&quot;:[&quot;test_1&quot;,&quot;test_2&quot;]}</data>
-    </node>
-    <node id="3">
-      <data key="d1">test3</data>
-    </node>
-    <node id="4">
-      <data key="d1">test4</data>
-      <data key="d6">{"item": 1.0}</data>
-      <data key="d7">{"item": [0.5, 1, 2, 3]}</data>
-    </node>
-    <edge source="1" target="2">
-      <data key="d8">1.1</data>
-      <data key="d9">{"item1": 1.0, "item2": 1.0}</data>
-    </edge>
-    <edge source="3" target="4">
-      <data key="d10">{"item": [0.5, 1, 2, 3]}</data>
-    </edge>
-    <data key="d0">Test gml file</data>
-  </graph>
+  <key id="d0" for="graph" attr.name="label" attr.type="string"/>
+  <key id="d1" for="graph" attr.name="graph_item" attr.type="string"/>
+  <key id="d2" for="graph" attr.name="other_thing" attr.type="int"/>
+  <key id="d3" for="node" attr.name="label" attr.type="string"/>
+  <key id="d4" for="node" attr.name="a" attr.type="float"/>
+  <key id="d5" for="node" attr.name="b" attr.type="float"/>
+  <key id="d6" for="node" attr.name="dict_str" attr.type="string"/>
+  <key id="d7" for="node" attr.name="c" attr.type="float"/>
+  <key id="d8" for="node" attr.name="list_str" attr.type="string"/>
+  <key id="d9" for="node" attr.name="list_int" attr.type="string"/>
+  <key id="d10" for="node" attr.name="list_1" attr.type="string"/>
+  <key id="d11" for="node" attr.name="dict_with_list" attr.type="string"/>
+  <key id="d12" for="node" attr.name="dict_1" attr.type="string"/>
+  <key id="d13" for="edge" attr.name="value_double" attr.type="float"/>
+  <key id="d14" for="edge" attr.name="dict_2" attr.type="string"/>
+  <key id="d15" for="edge" attr.name="value_int" attr.type="int"/>
+  <key id="d16" for="edge" attr.name="list_2" attr.type="string"/>
+<graph edgedefault="undirected">
+  <data key="d0">Test gml file</data>
+  <data key="d1">[]</data>
+  <data key="d2">1</data>
+  <node id="0">
+    <data key="d3">test0</data>
+    <data key="d4">1.1</data>
+    <data key="d5">2.5555555</data>
+    <data key="d6">{&quot;a&quot;:&quot;value_1&quot;,&quot;b&quot;:&quot;value_2&quot;}</data>
+  </node>
+  <node id="1">
+    <data key="d3">test1</data>
+    <data key="d4">5</data>
+    <!--data item under is empty and should be removed in gml-->
+    <data key="d6"></data>
+    <data key="d7">0.0</data>
+    <data key="d8">{&quot;a&quot;:[&quot;test_1&quot;,&quot;test_2&quot;]}</data>
+    <data key="d9">{&quot;a&quot;:[2,4]}</data>
+  </node>
+  <node id="2">
+    <data key="d3">test2</data>
+    <data key="d4">367.0618067245002</data>
+    <data key="d5">0.03230269781364574</data>
+    <data key="d7">0.04307026375152765</data>
+  </node>
+  <node id="3">
+    <data key="d3">test3</data>
+    <data key="d10">{&quot;a&quot;:[0.1,0.2]}</data>
+    <data key="d11">{&quot;category&quot;:0.5,&quot;i&quot;:[13,14]}</data>
+  </node>
+  <node id="4">
+    <data key="d3">test4</data>
+    <data key="d12">{&quot;item_float&quot;:1.0}</data>
+    <data key="d10">{&quot;a&quot;:[0.2,0.3]}</data>
+  </node>
+  <edge source="1" target="2">
+    <data key="d13">1.1000</data>
+    <data key="d14">{&quot;item_1&quot;:1,&quot;item_2&quot;:2}</data>
+  </edge>
+  <edge source="3" target="4">
+    <data key="d15">3</data>
+    <data key="d16">{&quot;b&quot;:[1,2,3,4]}</data>
+  </edge>
+</graph>
 </graphml>
