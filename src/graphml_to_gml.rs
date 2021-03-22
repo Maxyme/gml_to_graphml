@@ -9,13 +9,11 @@ use regex::Regex;
 use serde_json::Value;
 use std::borrow::Cow;
 use std::collections::HashMap;
-use std::ffi::OsStr;
 use std::fs::File;
 use std::io::{BufWriter, Write};
 use std::path::Path;
 use std::str;
 
-// Todo: share these objects between the 2 classes?
 #[derive(Debug, Clone)]
 struct Node {
     id: String,
@@ -55,7 +53,7 @@ enum ValueTypes {
 enum ForTypes {
     Edge,
     Node,
-    Graph
+    Graph,
 }
 
 #[derive(Debug, Clone)]
@@ -65,18 +63,19 @@ struct Key {
     for_type: ForTypes,
 }
 
+const INDENT_2: &str = "  ";
+const INDENT_4: &str = "    ";
+const LINE_BREAK: &[u8] = "\r\n".as_bytes();
+
 fn write_graph_start(writer: &mut BufWriter<&File>, graph: &GraphInfo) {
-    // write graph specific content first then graph data
-    let graph_increment = " ".repeat(2);
-    // Add graph data before adding nodes and edges
+    // write graph specific content first then graph data, like nodes and edges
     writer.write("graph [".as_bytes()).ok();
     writer.write("\r\n".as_bytes()).ok();
     writer
-        .write(format!("{}directed 0", graph_increment).as_bytes())
-        .ok(); // todo: parse edgedefault="undirected"
-    writer.write("\r\n".as_bytes()).ok();
-    // Add data in a loop
-    write_items(writer, &graph.data, graph_increment);
+        .write(format!("{}directed 0", INDENT_2).as_bytes())
+        .ok();
+    writer.write(LINE_BREAK).ok();
+    write_data_items(writer, &graph.data, INDENT_2);
     // Note, not closing yet, as this will be done at the end
 }
 
@@ -87,53 +86,40 @@ fn write_graph_end(writer: &mut BufWriter<&File>) {
 
 fn write_edge(writer: &mut BufWriter<&File>, edge: &Edge) {
     // write edge specific content first then edge data
-    let edge_increment = " ".repeat(2);
-    let data_increment = " ".repeat(4);
-    writer
-        .write(format!("{}edge [", edge_increment).as_bytes())
-        .ok();
+    writer.write(format!("{}edge [", INDENT_2).as_bytes()).ok();
     writer.write("\r\n".as_bytes()).expect("");
     writer
-        .write(format!("{}source {}", data_increment, edge.source).as_ref())
+        .write(format!("{}source {}", INDENT_4, edge.source).as_ref())
         .ok();
-    writer.write("\r\n".as_bytes()).expect("");
-    // let v = String::from_utf8_lossy(edge.target.as_ref());
-    // writer.write(format!("{:?}target {}", data_increment, v).as_ref()).ok();
+    writer.write(LINE_BREAK).expect("");
     writer
-        .write(format!("{}target {}", data_increment, edge.target).as_ref())
+        .write(format!("{}target {}", INDENT_4, edge.target).as_ref())
         .ok();
-    writer.write("\r\n".as_bytes()).expect("");
+    writer.write(LINE_BREAK).expect("");
     // Add data in a loop
-    write_items(writer, &edge.data, data_increment);
+    write_data_items(writer, &edge.data, INDENT_4);
     // Close node
-    writer.write(format!("{}]", edge_increment).as_bytes()).ok();
-    writer.write("\r\n".as_bytes()).expect("");
+    writer.write(format!("{}]", INDENT_2).as_bytes()).ok();
+    writer.write(LINE_BREAK).expect("");
 }
 
 fn write_node(writer: &mut BufWriter<&File>, node: &Node) {
     // write node specific content first then node data
-    let node_increment = " ".repeat(2);
-    let data_increment = " ".repeat(4);
+    writer.write(format!("{}node [", INDENT_2).as_bytes()).ok();
+    writer.write(LINE_BREAK).expect("");
     writer
-        .write(format!("{}node [", node_increment).as_bytes())
+        .write(format!("{}id {}", INDENT_4, node.id).as_ref())
         .ok();
-    writer.write("\r\n".as_bytes()).expect("");
-    writer
-        .write(format!("{}id {}", data_increment, node.id).as_ref())
-        .ok();
-    writer.write("\r\n".as_bytes()).expect("");
+    writer.write(LINE_BREAK).expect("");
     // Add data in a loop
-    write_items(writer, &node.data, data_increment);
+    write_data_items(writer, &node.data, INDENT_4);
     // Close node
-    writer.write(format!("{}]", node_increment).as_bytes()).ok();
-    writer.write("\r\n".as_bytes()).expect("");
+    writer.write(format!("{}]", INDENT_2).as_bytes()).ok();
+    writer.write(LINE_BREAK).expect("");
 }
 
-fn write_items(
-    writer: &mut BufWriter<&File>,
-    data: &Vec<(String, String)>,
-    data_increment: String,
-) {
+fn write_data_items(writer: &mut BufWriter<&File>, data: &Vec<(String, String)>, indent: &str) {
+    // Write data items, while checking if the value is encoded json to unpack into lists and dicts
     for (key, value) in data.iter() {
         // check if the value is a dict or a list, which means it starts with "{ and ends with }"
         //if re_is_dict.is_match(&value) {
@@ -145,31 +131,37 @@ fn write_items(
             write_dict(writer, &map, key);
         } else {
             writer
-                .write(format!("{}{} {}", data_increment, key, value).as_ref())
+                .write(format!("{}{} {}", indent, key, value).as_ref())
                 .ok();
-            writer.write("\r\n".as_bytes()).expect("");
+            writer.write(LINE_BREAK).expect("");
         }
     }
 }
 
 fn get_value_with_increment(key: &String, item: &Value) -> String {
-    // add the values with an increment
-    let increment = " ".repeat(2);
+    // Generate a string with the values in the correct format with an indent
     if item.is_f64() {
-        format!("{}{} {:?}", increment, key, item.as_f64().expect(""))
+        format!("{}{} {:?}", INDENT_4, key, item.as_f64().expect(""))
     } else if item.is_i64() {
-        format!("{}{} {:?}", increment, key, item.as_i64().expect(""))
+        format!("{}{} {:?}", INDENT_4, key, item.as_i64().expect(""))
     } else if item.is_string() {
-        format!("{}{} {:?}", increment, key, item.as_str().expect(""))
+        format!("{}{} {:?}", INDENT_4, key, item.as_str().expect(""))
     } else {
-        "WTF".to_string()
-        //panic!("WTF");
+        panic!("Could not decipher value type");
     }
 }
 
 fn write_dict(writer: &mut BufWriter<&File>, json: &Value, dict_key: &String) {
+    // Write gml dicts, with possible inside lists
+    // a [
+    //   y 2
+    //   z 1
+    //   list [
+    //        i 1
+    //        i 2
+    //   ]
+    // ]
     let dict_increment = " ".repeat(4);
-    // Open dict
     writer
         .write(format!("{}{} [", dict_increment, dict_key).as_bytes())
         .ok();
@@ -185,7 +177,7 @@ fn write_dict(writer: &mut BufWriter<&File>, json: &Value, dict_key: &String) {
                     writer
                         .write(format!("{}{}", dict_increment, value_string).as_bytes())
                         .ok();
-                    writer.write("\r\n".as_bytes()).expect("");
+                    writer.write(LINE_BREAK).expect("");
                 }
             }
             _ => {
@@ -194,13 +186,25 @@ fn write_dict(writer: &mut BufWriter<&File>, json: &Value, dict_key: &String) {
                 writer
                     .write(format!("{}{}", dict_increment, value_string).as_bytes())
                     .ok();
-                writer.write("\r\n".as_bytes()).expect("");
+                writer.write(LINE_BREAK).expect("");
             }
         }
     }
     // Close dict
     writer.write(format!("{}]", dict_increment).as_bytes()).ok();
     writer.write("\r\n".as_bytes()).expect("");
+}
+
+fn get_attribute(attributes: Attributes, search_term: &[u8]) -> Result<String, String> {
+    // Get the select attribute by keyword
+    for attr in attributes {
+        let val = attr.ok().expect("Attribute");
+        if val.key == search_term {
+            let value_as_string = str::from_utf8(val.value.as_ref()).expect("").to_string();
+            return Ok(value_as_string);
+        }
+    }
+    Err("Error: attribute not found".to_string())
 }
 
 pub fn export_to_gml(input_graphml: &Path, output_path: &Path) {
@@ -210,7 +214,7 @@ pub fn export_to_gml(input_graphml: &Path, output_path: &Path) {
     let mut keys: HashMap<String, Key> = HashMap::new();
 
     let mut reader = Reader::from_file(input_graphml).expect("Issue reading from path");
-    let mut output_file = File::create(output_path).expect("Unable to create file");
+    let output_file = File::create(output_path).expect("Unable to create file");
     let mut writer = BufWriter::new(&output_file);
     let mut state = CurrentState::InGraph;
     let mut buf = Vec::new();
@@ -233,11 +237,9 @@ pub fn export_to_gml(input_graphml: &Path, output_path: &Path) {
         data: vec![],
     };
 
-    // let re_is_dict = Regex::new(r#"^"\{(.+)}"$"#).unwrap();
-
     loop {
         match reader.read_event(&mut buf) {
-            Ok(Event::Decl(ref e)) => {
+            Ok(Event::Decl(_)) => {
                 // Ignore the xml declaration
             }
             Ok(Event::Start(ref e)) => {
@@ -246,13 +248,11 @@ pub fn export_to_gml(input_graphml: &Path, output_path: &Path) {
                         // ignore graphml tag attributes
                     }
                     b"graph" => {
+                        // Get the directed value, with default to false
                         current_graph.directed =
                             match get_attribute(e.html_attributes(), b"edgedefault") {
                                 Ok(value) => value == "directed",
-                                Err(_) => {
-                                    // default is false
-                                    false
-                                }
+                                Err(_) => false,
                             }
                     }
                     b"node" => {
@@ -304,7 +304,7 @@ pub fn export_to_gml(input_graphml: &Path, output_path: &Path) {
                         current_edge.data.clear();
                     }
                     b"data" => {
-                        // Exit data state // todo: use a in_data state and go back to previous?
+                        // Exit data state
                         in_data = false;
                     }
                     _ => (),
@@ -321,10 +321,7 @@ pub fn export_to_gml(input_graphml: &Path, output_path: &Path) {
                         let mut key_id = "".to_string();
                         for attr in e.html_attributes() {
                             let val = attr.ok().expect("Attribute");
-                            let key = val.key;
-                            // todo: keep str instead of string?
-
-                            match key {
+                            match val.key {
                                 b"attr.name" => {
                                     new_key.attr_name =
                                         str::from_utf8(val.value.as_ref()).expect("").to_string()
@@ -344,29 +341,27 @@ pub fn export_to_gml(input_graphml: &Path, output_path: &Path) {
                                     b"edge" => new_key.for_type = ForTypes::Edge,
                                     b"node" => new_key.for_type = ForTypes::Node,
                                     b"graph" => new_key.for_type = ForTypes::Graph,
-                                    _ => panic!("This for type is unsupported!")
-                                }
+                                    _ => panic!("This for type is unsupported!"),
+                                },
                                 _ => (),
                             };
                         }
                         keys.insert(key_id.clone(), new_key.clone());
                     }
                     b"data" => {
-                        // Todo: ignore empty
-                        panic!("Empty node or edge values not supported at the moment")
+                        // Ignore empty data tags
                     }
                     b"node" => {
-                        panic!("Empty node or edge values not supported at the moment")
+                        // Ignore empty node tags
                     }
                     b"edge" => {
-                        panic!("Empty node or edge values not supported at the moment")
+                        // Ignore empty edge tags
                     }
                     _ => (),
                 }
             }
             // unescape and decode the text event using the reader encoding
             Ok(Event::Text(e)) => {
-                //let v = reader.decode(e).ok();
                 // Extract the string data if in a data tag inside a node, edge or graph only
                 if !in_data {
                     // Ignore text when not in data tag
@@ -381,12 +376,10 @@ pub fn export_to_gml(input_graphml: &Path, output_path: &Path) {
                     // Skip empty values
                     continue;
                 }
-                // Get the attribute name from the current data key
-                //let cur_key = str::from_utf8(current_data_key.clone().as_ref()).expect("").to_string();
-                let key = keys.get(&*current_data_key).expect("issue getting key");
+                // Get the attribute name and type from the current data key
+                let key = keys.get(&*current_data_key).expect("Issue getting key");
                 if key.attr_type == ValueTypes::String {
                     // Add quotes around value if it's a string
-                    // todo: check for json here first, as this won't work
                     value = format!("\"{}\"", value);
                 }
                 match state {
@@ -401,30 +394,17 @@ pub fn export_to_gml(input_graphml: &Path, output_path: &Path) {
                     }
                 };
             }
-            Ok(Event::Eof) => break, // exits the loop when reaching end of file
-            Err(e) => panic!("Error at position {}: {:?}", reader.buffer_position(), e),
+            Ok(Event::Eof) => break, // exit the loop when reaching end of file
+            Err(e) => {
+                // Propagate error
+                panic!("Error at position {}: {:?}", reader.buffer_position(), e)
+            }
             _ => (), // Ignore other Events
         }
 
         // if we don't keep a borrow elsewhere, we can clear the buffer to keep memory usage low
         buf.clear();
     }
-
-    //println!("{:?}", keys);
-}
-
-fn get_attribute(attributes: Attributes, search_term: &[u8]) -> Result<String, String> {
-    for attr in attributes {
-        // e.html_attributes() {
-        let val = attr.ok().expect("Attribute");
-        if val.key == search_term {
-            //b"id" {
-            //current_node.id = str::from_utf8(val.value.as_ref()).expect("").to_string();
-            let value_as_string = str::from_utf8(val.value.as_ref()).expect("").to_string();
-            return Ok(value_as_string);
-        }
-    }
-    Err("Error: attribute not found".to_string())
 }
 
 #[cfg(test)]

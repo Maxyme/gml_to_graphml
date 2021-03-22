@@ -117,7 +117,11 @@ fn add_graph_info(writer: &mut Writer<BufWriter<&File>>, graph: &GraphInfo) {
     // Add the graph node: <data key="d0">Test gml file</data>
     let name = "graph".as_bytes();
     let mut elem = BytesStart::borrowed_name(name);
-    let direction = if graph.directed { "directed" } else { "undirected" };
+    let direction = if graph.directed {
+        "directed"
+    } else {
+        "undirected"
+    };
     elem.push_attribute(("edgedefault", direction));
     add_elem_with_keys(writer, &graph.data, elem, name, false);
 }
