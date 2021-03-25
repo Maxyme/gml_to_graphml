@@ -492,3 +492,26 @@ pub fn export_to_graphml(input_gml: &Path, output_path: &Path) {
     let mut src = File::open(&tmp_file).expect("Error opening source file");
     copy(&mut src, &mut output_file).expect("Error copying file");
 }
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::gml_to_graphml;
+
+    #[test]
+    fn test_simple() {
+        let filename = "./src/data/test_simple.gml";
+        let input_path = Path::new(filename);
+        let output_path = Path::new("./src/result_simple.graphml");
+        gml_to_graphml::export_to_graphml(&input_path, &output_path);
+    }
+
+    #[test]
+    fn test_complex() {
+        let filename = "./src/data/test_complex.gml";
+        let input_path = Path::new(filename);
+        let output_path = Path::new("./src/result_complex.graphml");
+        gml_to_graphml::export_to_graphml(&input_path, &output_path);
+    }
+}
