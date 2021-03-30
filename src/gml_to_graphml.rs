@@ -2,7 +2,7 @@
 
 use std::collections::HashMap;
 use std::fs::File;
-use std::io::{copy, BufRead, BufReader, BufWriter, Write};
+use std::io::{copy, BufRead, BufReader, BufWriter, Write, Read};
 
 use itertools::Itertools;
 use quick_xml::events::{BytesDecl, BytesEnd, BytesStart, BytesText, Event};
@@ -13,6 +13,7 @@ use tempfile::NamedTempFile;
 
 use std::path::Path;
 use std::str::FromStr;
+use std::fs;
 
 #[derive(Debug, Clone)]
 struct Node {
@@ -266,11 +267,11 @@ pub fn export_to_graphml(input_gml: &Path, output_path: &Path) {
     // Convert the import file to graphml using a bufreader and xml bufwriter
     // Write to a temp file and copy the file with header information added after at the output path destination
     // Todo: check if instantiating a bufwriter with a bigger capacity makes it faster for large files
-    let tmp_file = NamedTempFile::new().expect("Error creating temp file");
-
+    let tmp_path = Path::new("./src/temp.graphml");
+    let tmp_file = File::create(&tmp_path).expect("Unable to create file");
     let mut output_file = File::create(output_path).expect("Unable to create file");
 
-    let writer = BufWriter::new(tmp_file.as_file());
+    let writer = BufWriter::new(&tmp_file);
     let mut xml_writer = Writer::new_with_indent(writer, ' ' as u8, 2);
 
     let input_file = File::open(input_gml).expect("Issue reading file at path");
@@ -369,6 +370,7 @@ pub fn export_to_graphml(input_gml: &Path, output_path: &Path) {
                         }
                         inner_dict.clear();
                         list_item_staging.clear();
+                        dict_key_value.clear();
                     }
                     CurrentState::InEdge => {
                         // Add edge when exiting an edge
@@ -489,8 +491,11 @@ pub fn export_to_graphml(input_gml: &Path, output_path: &Path) {
     new_xml_writer.inner().flush().ok();
 
     // Merge the previous file
-    let mut src = File::open(&tmp_file).expect("Error opening source file");
+    let mut src = File::open(&tmp_path).expect("Error opening source file");
     copy(&mut src, &mut output_file).expect("Error copying file");
+
+    // Remove the temp file
+    fs::remove_file(&temp_path).expect("Issue deleting temp file");
 }
 
 
