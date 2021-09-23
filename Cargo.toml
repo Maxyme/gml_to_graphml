@@ -1,14 +1,16 @@
 [package]
-name = "gml_to_graphml"
+name = "graph_converter"
 version = "0.1.0"
 authors = ["Maxime Jacques <maxime@mims.ai>"]
-edition = "2018"
+edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-quick-xml = "*"
-itertools = "*"
-serde_json = "*"
-regex = "*"
-tempfile = "*"
+quick-xml = "0.22.0"
+itertools = "0.10.1"
+clap = "2.33.3"
+# Add preserve_order to make serde_json::Map use a representation which maintains insertion order.
+serde_json = { version = "1.0.67", features = ["preserve_order"] }
+regex = "1.5.4"
+uuid = { version = "0.8.2", features = ["v4"] }

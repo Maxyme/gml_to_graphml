@@ -38,7 +38,7 @@ graph [
   ]
   node [
     id 3
-    label "test3"
+    label "123"
     list_1 [
       a 0.1
       a 0.2
@@ -60,6 +60,9 @@ graph [
       a 0.2
       a 0.3
     ]
+    list_item 1
+    list_item 2
+    list_item 3
   ]
   edge [
      source 1
@@ -69,6 +72,8 @@ graph [
        item_1 1
        item_2 2
      ]
+     edge_list "a"
+     edge_list "b"
   ]
   edge [
      source 3
@@ -80,5 +85,7 @@ graph [
        b 3
        b 4
     ]
+    edge_list_int 1
+    edge_list_int 2
   ]
 ]

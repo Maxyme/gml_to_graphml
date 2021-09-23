@@ -1,3 +1,4 @@
+<!--Comment-->
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <graphml xmlns="http://graphml.graphdrawing.org/xmlns" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://graphml.graphdrawing.org/xmlns http://graphml.graphdrawing.org/xmlns/1.0/graphml.xsd">
   <key id="d0" for="graph" attr.name="label" attr.type="string"/>
@@ -17,20 +18,24 @@
   <key id="d14" for="edge" attr.name="dict_2" attr.type="string"/>
   <key id="d15" for="edge" attr.name="value_int" attr.type="int"/>
   <key id="d16" for="edge" attr.name="list_2" attr.type="string"/>
+  <key id="d17" for="edge" attr.name="edge_list_int" attr.type="string"/>
+  <key id="d18" for="edge" attr.name="edge_list_str" attr.type="string"/>
 <graph edgedefault="undirected">
   <data key="d0">Test gml file</data>
+  <!--Empty array will be converted to a string in gml-->
   <data key="d1">[]</data>
   <data key="d2">1</data>
   <node id="0">
     <data key="d3">test0</data>
     <data key="d4">1.1</data>
     <data key="d5">2.5555555</data>
-    <data key="d6">{&quot;a&quot;:&quot;value_1&quot;,&quot;b&quot;:&quot;value_2&quot;}</data>
+    <!--Dict values should be kept in the same order-->
+    <data key="d6">{&quot;b&quot;:&quot;value_1&quot;,&quot;a&quot;:&quot;value_2&quot;}</data>
   </node>
   <node id="1">
     <data key="d3">test1</data>
     <data key="d4">5</data>
-    <!--data item under is empty and should be removed in gml-->
+    <!--Comment-->
     <data key="d6"></data>
     <data key="d7">0.0</data>
     <data key="d8">{&quot;a&quot;:[&quot;test_1&quot;,&quot;test_2&quot;]}</data>
@@ -59,6 +64,8 @@
   <edge source="3" target="4">
     <data key="d15">3</data>
     <data key="d16">{&quot;b&quot;:[1,2,3,4]}</data>
+    <data key="d17">[1,2,3,4]</data>
+    <data key="d18">[&quot;a&quot;,&quot;b&quot;,&quot;c&quot;,&quot;d&quot;]</data>
   </edge>
 </graph>
 </graphml>
