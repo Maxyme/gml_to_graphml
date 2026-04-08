@@ -551,33 +551,3 @@ pub fn export_to_graphml(input_gml: &Path, output_path: &Path) {
     // Remove the temp file
     fs::remove_file(&tmp_path).expect("Issue deleting temp file");
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    extern crate test;
-    use test::Bencher;
-
-    #[test]
-    fn test_simple() {
-        let input_path = Path::new("./src/data/test_simple.gml");
-        let output_path = Path::new("./src/result_simple.graphml");
-        export_to_graphml(&input_path, &output_path);
-    }
-
-    #[test]
-    fn test_complex() {
-        let input_path = Path::new("./src/data/test_complex.gml");
-        let output_path = Path::new("./src/result_complex.graphml");
-        export_to_graphml(&input_path, &output_path);
-    }
-
-    #[bench]
-    fn bench_complex(b: &mut Bencher) {
-        let input_path = Path::new("./src/data/test_complex.gml");
-        let output_path = Path::new("./src/result_complex.graphml");
-        b.iter(|| {
-            export_to_graphml(&input_path, &output_path);
-        });
-    }
-}

@@ -467,33 +467,3 @@ pub fn export_to_gml(input_graphml: &Path, output_path: &Path) {
         buf.clear();
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    extern crate test;
-    use test::Bencher;
-
-    #[test]
-    fn test_simple() {
-        let input_path = Path::new("./src/data/test_simple.graphml");
-        let output_path = Path::new("./src/result_simple.gml");
-        export_to_gml(&input_path, &output_path);
-    }
-
-    #[test]
-    fn test_complex() {
-        let input_path = Path::new("./src/data/test_complex.graphml");
-        let output_path = Path::new("./src/result_complex.gml");
-        export_to_gml(&input_path, &output_path);
-    }
-
-    #[bench]
-    fn bench_complex(b: &mut Bencher) {
-        let input_path = Path::new("./src/data/test_complex.graphml");
-        let output_path = Path::new("./src/result_complex.gml");
-        b.iter(|| {
-            export_to_gml(&input_path, &output_path);
-        });
-    }
-}

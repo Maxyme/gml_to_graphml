@@ -1,5 +1,3 @@
-#![feature(test)]
-
 /*
 GML to graphml converter.
 
@@ -18,10 +16,8 @@ use std::ffi::OsStr;
 use std::path::Path;
 use std::time::Instant;
 
-mod gml_to_graphml;
-mod graphml_to_gml;
-
 use clap::{App, Arg};
+use graph_converter::{gml_to_graphml, graphml_to_gml};
 
 fn main() {
     let matches = App::new("Graph converter")
