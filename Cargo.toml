@@ -1,16 +1,17 @@
 [package]
 name = "graph_converter"
-version = "0.1.0"
-authors = ["Maxime Jacques <maxime@mims.ai>"]
-edition = "2021"
+version = "0.1.1"
+authors = ["Maxime Jacques <maxime@outlook.com>"]
+edition = "2024"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 quick-xml = "0.22.0"
-itertools = "0.10.1"
-clap = "2.33.3"
+itertools = "0.10.5"
+clap = "2.34.0"
+
 # Add preserve_order to make serde_json::Map use a representation which maintains insertion order.
-serde_json = { version = "1.0.67", features = ["preserve_order"] }
-regex = "1.5.4"
+serde_json = { version = "1.0.149", features = ["preserve_order"] }
+regex = "1.12.3"
 uuid = { version = "0.8.2", features = ["v4"] }
