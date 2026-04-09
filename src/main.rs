@@ -13,38 +13,40 @@ https://depth-first.com/articles/2020/07/20/reading-sd-files-in-rust/
  */
 
 use std::ffi::OsStr;
-use std::path::Path;
+use std::path::PathBuf;
 use std::time::Instant;
 
-use clap::{App, Arg};
+use clap::{value_parser, Arg, Command};
 use graph_converter::{gml_to_graphml, graphml_to_gml};
 
 fn main() {
-    let matches = App::new("Graph converter")
+    let matches = Command::new("Graph converter")
         .version("0.1.3")
         .about("Graph file converter between gml and graphml formats")
         .arg(
-            Arg::with_name("INPUT")
+            Arg::new("INPUT")
                 .help("Sets the input file path to use")
-                .short("i")
                 .required(true)
-                .index(1),
+                .index(1)
+                .value_parser(value_parser!(PathBuf)),
         )
         .arg(
-            Arg::with_name("OUTPUT")
+            Arg::new("OUTPUT")
                 .help("Sets the output file path to use")
-                .short("o")
                 .required(true)
-                .index(2),
+                .index(2)
+                .value_parser(value_parser!(PathBuf)),
         )
         .get_matches();
 
-    let input = matches.value_of("INPUT").unwrap();
-    let input_path = Path::new(input);
-    let output = matches.value_of("OUTPUT").unwrap();
-    let output_path = Path::new(output);
+    let input_path = matches
+        .get_one::<PathBuf>("INPUT")
+        .expect("required by clap");
+    let output_path = matches
+        .get_one::<PathBuf>("OUTPUT")
+        .expect("required by clap");
 
-    println!("Using input file path: {}", input);
+    println!("Using input file path: {}", input_path.display());
 
     // Convert files at given paths
     let extension = input_path
@@ -56,11 +58,11 @@ fn main() {
     match extension {
         "gml" => {
             println!("Converting gml file to graphml");
-            gml_to_graphml::export_to_graphml(input_path, output_path);
+            gml_to_graphml::export_to_graphml(input_path.as_path(), output_path.as_path());
         }
         "graphml" => {
             println!("Converting graphml file to gml");
-            graphml_to_gml::export_to_gml(input_path, output_path);
+            graphml_to_gml::export_to_gml(input_path.as_path(), output_path.as_path());
         }
         _ => panic!("Unexpected input file format (only .gml or .graphml files supported)"),
     }

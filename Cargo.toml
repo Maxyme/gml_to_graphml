@@ -9,7 +9,7 @@ edition = "2024"
 [dependencies]
 quick-xml = "0.22.0"
 itertools = "0.10.5"
-clap = "2.34.0"
+clap = "4.5.39"
 
 # Add preserve_order to make serde_json::Map use a representation which maintains insertion order.
 serde_json = { version = "1.0.149", features = ["preserve_order"] }
