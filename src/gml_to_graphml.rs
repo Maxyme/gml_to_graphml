@@ -1,14 +1,14 @@
 // GML to graphml converter
 
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::fs::File;
-use std::io::{copy, BufRead, BufReader, BufWriter, Write};
+use std::io::{BufRead, BufReader, BufWriter, Write, copy};
 
 use itertools::Itertools;
-use quick_xml::events::{BytesDecl, BytesEnd, BytesStart, BytesText, Event};
 use quick_xml::Writer;
+use quick_xml::events::{BytesDecl, BytesEnd, BytesStart, BytesText, Event};
 use regex::Regex;
-use serde_json::{json, Map, Number, Value};
+use serde_json::{Map, Number, Value, json};
 use uuid::Uuid;
 
 use std::path::Path;
@@ -20,20 +20,20 @@ use std::{env, fs};
 #[derive(Debug, Clone)]
 struct Node {
     id: String,
-    data: HashMap<String, Vec<String>>,
+    data: BTreeMap<String, Vec<String>>,
 }
 
 #[derive(Debug, Clone)]
 struct Edge {
     source: String,
     target: String,
-    data: HashMap<String, Vec<String>>,
+    data: BTreeMap<String, Vec<String>>,
 }
 
 #[derive(Debug, Clone)]
 struct GraphInfo {
     directed: Option<bool>,
-    data: HashMap<String, Vec<String>>,
+    data: BTreeMap<String, Vec<String>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Copy)]
@@ -45,7 +45,7 @@ enum CurrentState {
     EdgeObject,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 enum GraphmlElems {
     Node,
     Edge,
@@ -81,7 +81,7 @@ impl GraphmlAttributeTypes {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 struct KeyAttributes {
     attr_name: String,
     for_elem: GraphmlElems,
@@ -156,7 +156,7 @@ fn add_edge(writer: &mut Writer<BufWriter<&File>>, edge: &Edge) {
 
 fn add_elem_with_keys(
     writer: &mut Writer<BufWriter<&File>>,
-    elem_data: &HashMap<String, Vec<String>>,
+    elem_data: &BTreeMap<String, Vec<String>>,
     elem: BytesStart,
     elem_name: &[u8],
     close: bool,
@@ -201,7 +201,7 @@ fn add_elem_with_keys(
     }
 }
 
-fn add_keys(writer: &mut Writer<BufWriter<File>>, keys: &HashMap<KeyAttributes, KeyValues>) {
+fn add_keys(writer: &mut Writer<BufWriter<File>>, keys: &BTreeMap<KeyAttributes, KeyValues>) {
     // Write the list of xml keys
     // <key id="d10" for="edge" attr.name="list" attr.type="string" />
 
@@ -225,7 +225,7 @@ fn add_keys(writer: &mut Writer<BufWriter<File>>, keys: &HashMap<KeyAttributes, 
 }
 
 fn get_or_add_key_id(
-    keys: &mut HashMap<KeyAttributes, KeyValues>,
+    keys: &mut BTreeMap<KeyAttributes, KeyValues>,
     key_attr: &KeyAttributes,
     value: &str,
 ) -> String {
@@ -260,8 +260,8 @@ fn get_or_add_key_id(
 }
 
 fn update_element(
-    elem_map: &mut HashMap<String, Vec<String>>,
-    keys: &mut HashMap<KeyAttributes, KeyValues>,
+    elem_map: &mut BTreeMap<String, Vec<String>>,
+    keys: &mut BTreeMap<KeyAttributes, KeyValues>,
     value: &str,
     element: GraphmlElems,
     name: &str,
@@ -328,7 +328,7 @@ pub fn export_to_graphml(input_gml: &Path, output_path: &Path) {
     let mut graph_info_added = false;
 
     // Key info
-    let mut keys: HashMap<KeyAttributes, KeyValues> = HashMap::new();
+    let mut keys = BTreeMap::<KeyAttributes, KeyValues>::new();
 
     // Current dict info (inside an edge or a node)
     let mut dict_key_value = String::new(); // key value name for the dict;
