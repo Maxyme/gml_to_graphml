@@ -2,9 +2,9 @@
 // Note: This takes a decision to remove keys that have no values, ie. <data key="v"></data> will be omitted in the final gml
 // Todo: use COW with [u8] instead of converting to string and back when writing
 
-use quick_xml::events::attributes::Attributes;
-use quick_xml::events::Event;
 use quick_xml::Reader;
+use quick_xml::events::Event;
+use quick_xml::events::attributes::Attributes;
 use serde_json::Value;
 use std::collections::HashMap;
 use std::fs::File;
