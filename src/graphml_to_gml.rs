@@ -19,10 +19,9 @@ struct Node {
 }
 
 #[derive(Debug, Clone)]
-//struct Edge<'a> {
 struct Edge {
     source: u32,
-    target: u32, //Cow<'a, [u8]>, //String,
+    target: u32,
     data: Vec<(String, String)>,
 }
 

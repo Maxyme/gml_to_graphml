@@ -510,7 +510,7 @@ pub fn export_to_graphml(input_gml: &Path, output_path: &Path) {
                             match value.parse::<f64>() {
                                 Ok(_) => inner_dict.insert(
                                     name.to_string(),
-                                    serde_json::Value::Number(
+                                    Value::Number(
                                         Number::from_str(value).expect("Error parsing string"),
                                     ),
                                 ),
